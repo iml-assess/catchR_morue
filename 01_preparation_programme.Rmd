@@ -1,0 +1,131 @@
+---
+title: "Préparation initiale du programme"
+author: "Jordan Ouellette-Plante"
+date: "`r Sys.Date()`"
+link-citations: true
+bibliography: C:/Users/OuellettePJ/Documents/JabRef/References_Jordan.bib
+csl: C:/Users/OuellettePJ/Documents/JabRef/csl/csas-french.csl
+output:
+  html_document:
+    toc: TRUE
+    toc_depth: 2
+    toc_float:
+      collapsed: TRUE
+    theme: united
+    highlight: tango
+    code_folding: show
+    number_sections: TRUE
+  linkcolor: blue
+---
+# Objectif
+
+Mettre en place les informations requises pour rouler le programme.
+
+# Initialisation
+```{r}
+# Pour le fichier Rmarkdown
+knitr::opts_chunk$set(echo = T, collapse = T, fig.align = "center", fig.width = 9, 
+                      fig.height = 6, message = F, warning = F)
+```
+
+## Packages requis
+```{r}
+# Packages requis disponibles sur CRAN
+packages <- c("tidyverse", "gridExtra", "viridis", "kableExtra")
+packages <- packages[!(packages %in% utils::installed.packages()[, "Package"])]
+if(length(packages) > 0) install.packages(packages)
+
+# Packages requis et téléchargeables depuis GitHub
+packages <- c("catchR")
+packages <- packages[!(packages %in% utils::installed.packages()[, "Package"])]
+
+if("catchR" %in% packages)  devtools::install_github("iml-assess/catchR")
+rm(packages)
+
+library(gridExtra)
+library(viridis)
+library(catchR)
+library(tidyverse)
+options(dplyr.summarise.inform = FALSE)
+library(kableExtra)
+```
+
+## Répertoires et infos utiles
+`~/Data/` est un répertoire personnel où je conserve les données les plus à jour des différentes bases sur le réseau. Les fichiers chargés pour la morue sont déjà travaillés pour ne conserver que les données associées à la morue franche.
+```{r}
+# Répertoires
+dir_ziff <- "~/Data/ZIFF/" # données ZIFF
+dir_nafoa <- "~/Data/NAFOA/" # données NAFO 21A
+dir_nafob <- "~/Data/NAFOB/" # données NAFO 21B
+dir_bio  <- "./Data/echantillonneurs_quai/" # données de caractéristiques biologiques et de FL 
+dir_ngsl <- "~/Data/NGSL/" # données des relevés multispécifiques du mois d'août dans le nGSL
+
+# Fichiers intrants
+intrant_nafoa <- paste0(dir_nafoa, "statland21A_morue.Rda")
+intrant_nafob <- paste0(dir_nafob, "NAFO21B_morue.Rda")
+intrant_ziff <- paste0(dir_ziff, "ziff_morue.Rda")
+intrant_lf <- paste0(dir_bio, "morue_freq_V20210329.dat")
+intrant_bio <- paste0(dir_bio, "morue_carbio_V20210329.dat")
+intrant_ngsl <- paste0(dir_ngsl, "NGSL_morue.Rda") # série Needler-Teleost
+intrant_LH <- paste0(dir_ngsl, "LH_morue.Rda") # série Lady Hammond
+intrant_Gadus <- paste0(dir_ngsl, "Gadus_morue.Rda") # série Gadus Atlantica
+
+# Fichiers extrants (produits dans les différents scripts)
+result <- "./Resultats/"
+dat_ziff <- paste0(result, "02_ziff.Rda") # 02_ = créé au script 02
+dat_nafoa <- paste0(result, "02_nafoA.Rda")
+dat_nafob <- paste0(result, "02_nafoB.Rda")
+dat_catch <- paste0(result, "02_catch.Rda")
+dat_LF <- paste0(result, "02_lf.Rda")
+dat_bio <- paste0(result, "02_bio.Rda")
+dat_engin_deb <- paste0(result, "02_engins_deb.Rda")
+dat_engin_obs <- paste0(result, "02_engins_obs.Rda")
+dat_lw <- paste0(result, "03_lw.Rda")
+dat_caa_raw <- paste0(result, "03_caa_data_brutes.Rda")
+dat_caa_processed <- paste0(result, "03_caa_data_nettes.Rda")
+dat_obs_1990_1998 <- "./Data/observateur_mer/cod LF in shrimp_obs.Rdata" # données des observateurs en mer 1990-1998
+# dat_obs_1990_1998 a été fourni par Hugues Benoît dans un courriel du 9 sept. 2021
+dat_obs_1999 <- "~/Data/OBS/OBS_toutes_especes.Rda" # copie locale des données d'observateurs en mer 1999-maintenant
+
+# Autres informations
+my_sp <- "cod" # "cod" ou "mackerel"
+my_sp_ziff <- 100 # code ZIFF pour la morue
+my_sp_nafo <- 101 # code OPANO pour la morue
+my_nafo <- c(36, 41, 42) # 36 = 3Pn, 41 = 4R, 42 = 4S
+opanos <- c("3Pn", "4R", "4S") # Divisions OPANO associées à la morue du NGSL
+my_year <- 1993:2020 # Années pour lesquelles on veut faire l'analyse
+
+langue <- "en" # peut être "fr", "en" ou "en_fr"
+
+if (langue == "fr"){
+  figure <- "./Figures/FR/"
+  dm <- ","
+  bm <- " "
+} else if (langue == "en"){
+  figure <- "./Figures/EN/"
+  dm <- "."
+  bm <- ","
+} else {  
+  figure <- "./Figures/BI/"
+  dm <- "."
+  bm <- ","
+}
+```
+
+# Thème pour les figures
+```{r}
+my_theme <- theme_bw(base_size = 12, base_line_size = 0.25, base_rect_size = 0.25) +
+            theme(axis.title.y = element_text(angle = 90),
+                  axis.text.x = element_text(size = 10, colour = "black"),
+                  axis.text.y = element_text(size = 10, colour = "black"),
+                  legend.key = element_blank(),
+                  legend.title = element_text(colour = "black"), 
+                  legend.text = element_text(size = 10),
+                  legend.background = element_blank(),
+                  panel.grid.major = element_blank(),
+                  panel.grid.minor = element_blank(),
+                  axis.line = element_line(color = "black"),
+                  panel.border = element_rect(colour = "black", fill = NA))
+
+theme_set(my_theme) # toutes les figures auront comme thème "my_theme"
+```

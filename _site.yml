@@ -1,0 +1,20 @@
+name: "Morue"
+navbar:
+  title: "Morue"
+  left:
+    - text: "1. Préparation initiale"
+      href: 01_preparation_programme.html
+    - text: "2. Préparation des intrants"
+      href: 02_preparation_data.html
+    - text: "3. Calculs"
+      href: 03_calculs.html
+    - text: "4. Comparaisons avec valeurs historiques"
+      href: 04_comparaisons_valeurs_historiques.html
+output:
+  html_document:
+    css: styles.css
+    theme: united
+    highlight: tango
+    code_folding: show
+    number_sections: TRUE
+  linkcolor: blue

@@ -1,0 +1,1615 @@
+---
+title: "Préparation des intrants du programme"
+author: "Jordan Ouellette-Plante"
+date: "`r Sys.Date()`"
+link-citations: true
+bibliography: C:/Users/OuellettePJ/Documents/JabRef/References_Jordan.bib
+csl: C:/Users/OuellettePJ/Documents/JabRef/csl/csas-french.csl
+output:
+  html_document:
+    toc: TRUE
+    toc_depth: 2
+    toc_float:
+      collapsed: TRUE
+    theme: united
+    highlight: tango
+    code_folding: show
+    number_sections: TRUE
+  linkcolor: blue
+---
+# Objectif
+
+Préparer ou du moins copier localement les intrants requis pour les analyses.
+
+# Initialisation
+```{r, echo = F}
+# Pour le fichier Rmarkdown
+knitr::opts_chunk$set(echo = T, collapse = T, fig.align = "center", fig.width = 9, 
+                      fig.height = 6, message = F, warning = F)
+```
+
+## Répertoires et infos utiles
+```{r, result = F}
+temp <- tempfile(fileext = ".R") # https://gist.github.com/noamross/a549ee50e8a4fd68b8b1
+knitr::purl(input = "01_preparation_programme.Rmd", output = temp, quiet = T)
+source(temp)
+rm(temp)
+```
+
+## packages requis
+Des packages supplémentaires sont requis.
+```{r}
+library(cowplot)
+library(grid)
+library(gridExtra)
+```
+
+# Débarquements
+## Données ZIFF
+```{r}
+if(!file.exists(dat_ziff)){ # si le fichier n'existe pas, je le crée
+    load(intrant_ziff)
+    dim(ziff) # 3799554 obs et 66 var
+    unique(ziff$cod_esp) # juste des débarquements de morue
+    unique(ziff$div) # plusieurs OPANO
+    ziff <- ziff %>% filter(div %in% opanos)
+    dim(ziff) # 583305 obs et 66 var
+    save(ziff, file = dat_ziff)
+}else{
+    load(dat_ziff)
+}
+
+dim(ziff) # 583305 obs et 66 var
+```
+
+## Données OPANO
+### Format NAFO 21A
+```{r}
+if(!file.exists(dat_nafoa)){
+    load(intrant_nafoa)
+    dim(nafoA) # 616 obs et 5 var
+    save(nafoA, file = dat_nafoa)
+}else{
+    load(dat_nafoa)
+}
+
+dim(nafoA) # 616 obs et 5 var
+```
+
+### Format NAFO 21B
+```{r}
+if(!file.exists(dat_nafob)){
+    load(intrant_nafob)
+    dim(nafoB) # 164393 obs et 25 var
+    unique(nafoB$nafo) # plusieurs OPANO
+    unique(nafoB$code) # 101 = code OPANO pour la morue franche
+    nafoB <- nafoB %>% 
+             filter(nafo %in% toupper(opanos)) %>% 
+             select(year, month, country, nafo, gear, gear, gear.code, gear.cat, prov, catch)
+    names(nafoB) <- recode(names(nafoB), "year" = "annee", "month" = "mois", "country" = "pays", "nafo" = "opano", 
+                           "gear" = "engin_en", "gear.code" = "engin", "gear.cat" = "engin_cat")
+    unique(nafoB$opano) # je vais standardiser 3Pn
+    nafoB[nafoB$opano == "3PN", "opano"] <- "3Pn"
+    dim(nafoB) # 19059 obs et 9 var
+    save(nafoB, file = dat_nafob)
+}else{
+    load(dat_nafob)
+}
+
+dim(nafoB) # 19059 obs et 9 var
+```
+
+## Comparaison des débarquements 
+```{r}
+dat_a <- nafoA %>% 
+         group_by(annee) %>% 
+         summarise(catch = sum(catch)) %>% 
+         ungroup %>% 
+         mutate(source = "NAFO 21A")
+dat_b <- nafoB %>% 
+         group_by(annee) %>% 
+         summarise(catch = sum(catch)) %>% 
+         ungroup %>% 
+         mutate(source = "NAFO 21B")
+dat_c <- ziff %>% 
+         group_by(annee) %>% 
+         summarise(catch = sum(pds_vift, na.rm = T)) %>% # en tonnes
+         ungroup %>% 
+         mutate(source = "ZIFF")
+
+dat <- bind_rows(dat_a, dat_b, dat_c) %>% filter(annee >= 1985)
+
+brks_x <- 1985:2020
+labs_x <- brks_x
+labs_x[labs_x %% 5 > 0] <- ""
+
+ggplot(data = dat, aes(x = annee, y = catch / 1000, fill = source)) +
+    geom_bar(stat = "identity", position = "dodge", color = "black", size = 0.2) +
+    scale_x_continuous(expand = c(0, 0), breaks = brks_x, labels = labs_x) + 
+    labs(x = "Année", y = "Débarquements (milliers de tonnes)", fill = "Source des données") +
+    theme(legend.position = c(1,1),
+          legend.justification = c(1,1))
+
+rm(dat_a, dat_b, dat_c, dat)
+```
+Les données de l'OPANO donnent des résultats équivalents jusqu'à ~ 2009. Les données NAFO 21B sont disponibles jusqu'à 2016, mais on voit qu'elles ne sont pas à jour avec les données ZIFF.
+
+Les données ZIFF ne comportent pas les débarquements des flottilles étrangères et c'est pour cette raison qu'ils sont plus bas au cours des années 1985--1992.
+
+## `catch` = `nafoB` + `ziff`
+Je me crée un jeu `catch` où je combine les données NAFO 21B et ZIFF selon ce format:
+
+* 1960--1984: données NAFO 21B
+* 1985--2020:
+    - Données ZIFF
+    - Données NAFO 21B seulement pour la composante internationale des débarquements
+```{r}
+ziff <- ziff %>% 
+        mutate(source = "ZIFF", 
+               pays = "Canada", # pour être constant avec les variables de nafoB
+               prov = ifelse(prov_deb == "Inconnu", as.character(prov_att), as.character(prov_deb)),
+               engin = as.character(engin),
+               catch = pds_vif) # débarquements en kg
+
+nafoB <- nafoB %>% 
+         mutate(source = "NAFO 21B",
+                engin = as.character(engin),
+                an_gestion = as.character(annee),
+                catch = catch * 1000) # débarquements en kg
+
+nafoB %>% filter(pays != "Canada") %>% pull(annee) %>% unique %>% sort
+# j'ai des débarquements de flotilles étrangères passé 1985. ZIFF ne contiendra pas ces débarquements
+
+catch <- bind_rows(nafoB %>% filter(annee < 1985),
+                   nafoB %>% filter(annee >= 1985, pays != "Canada"),
+                   ziff) %>% 
+         select(annee, mois, div, opano, prov, engin, engin_cat, engin_fr, engin_en, source, 
+                catch, pays, date_deb, an_gestion)
+
+# catch %>%
+#   group_by(annee) %>%
+#   summarise(catch = sum(catch / 1000, na.rm = T)) %>% # débarquements en tonnes
+#   ggplot(data = ., aes(x = annee, y = catch)) +
+#   geom_line() +
+#   geom_point()
+
+unique(catch$div) # valeurs NA...
+cor <- which(with(catch, is.na(div))); length(cor) # 10156 lignes
+unique(catch$opano[cor]) # la division n'a pas été inscrite.
+catch$div[cor] <- catch$opano[cor]
+
+cor <- which(with(catch, opano == "3P")); length(cor) # 17445 lignes
+unique(catch$div[cor]) # la zone unitaire devrait être 3Pn
+catch$opano[cor] <- "3Pn"
+
+cor <- which(with(catch, nchar(opano) == 2)); length(cor) # 7872 lignes
+unique(catch$div[cor]) # on ne sait pas quelle est la zone unitaire exacte...
+rm(cor)
+
+dim(catch) # 593461 obs et 14 var
+save(catch, file = dat_catch)
+```
+
+# Échantillonneurs à quai
+## Lectures
+### FL
+`lf` = length frequency = données de fréquences de longueur
+```{r}
+lf <- read.lf(file = intrant_lf, year = NULL, language = "fr") %>% 
+      filter(grepl("3PN|4R|4S", opano)) %>% 
+      as_tibble
+names(lf) <- recode(names(lf), "nafo" = "div")
+
+# Travail sur opano et div
+unique(lf$div) # problème avec 3P
+cor <- which(with(lf, !is.na(div) & div == "3P")); length(cor) # 14667 lignes
+unique(lf$opano[cor]) # 3Pn
+lf$div[cor] <- "3Pn"
+
+cor <- which(with(lf, is.na(div))); length(cor) # 13737 lignes
+unique(lf$opano[cor]) # div devrait être 4S
+lf$div[cor] <- "4S"
+rm(cor)
+
+unique(lf$opano) # la 3e lettre devrait être en minuscule
+lf$opano <- paste0(substr(lf$opano,1,2), tolower(substr(lf$opano,3,3)))
+
+dim(lf) # 109138 obs et 34 var
+```
+
+### Caractéristiques biologiques
+Ces données incluent les âges.
+```{r}
+bio <- read.bio(file = intrant_bio, year = NULL, species = my_sp, language = "fr") %>% 
+       filter(grepl("3PN|4R|4S", opano)) %>% 
+       mutate_at(.vars = c("engin", "engin_fr", "engin_en"), .funs = as.character) %>% 
+       as_tibble
+
+# Travail sur opano et div
+bio$opano <- as.character(bio$opano) # pour enlever les niveaux inutilisés
+unique(bio$opano) # la 3e lettre devrait être en minuscule
+bio$opano <- paste0(substr(bio$opano,1,2), tolower(substr(bio$opano,3,3)))
+
+dim(bio) # 117002 obs et 24 var
+temp <- bio # pour la partie sur les échantillons manquants
+bio <- bio %>% filter(!is.na(age), !is.na(longueur))
+dim(bio) # 85185 obs et 24 var
+```
+
+## Échantillons manquants
+Pour certaines années (1994--1997), on voit que j'ai plus d'échantillons d'âge que d'échantillons de FL, ce qui est bizarre puisque normalement, l'échantillon d'âge est un sous-échantillon de celui de FL.
+
+Une théorie est que des échantillons auraient été envoyés complets à l'IML ou ailleurs. Là-bas, les spécimens auraient tous servis autant pour les lectures d'âge que pour les FL. Il aurait donc dû copier ces données dans les données LF et Âge, et pas seulement dans les données d'âge.
+
+```{r}
+a <- lf %>% filter(annee %in% my_year) %>% group_by(annee) %>% summarise(n_lf = n_distinct(ech_id)) %>% ungroup
+b <- temp %>% filter(annee %in% my_year) %>% group_by(annee) %>% summarise(n_age = n_distinct(ech_id)) %>% ungroup
+full_join(a, b, by = "annee") %>% filter(n_age > n_lf)
+
+manque <- setdiff(temp %>% filter(annee %in% my_year) %>% pull(ech_id) %>% unique,
+                  lf %>% filter(annee %in% my_year) %>% pull(ech_id) %>% unique)
+length(manque) # manque 1478 échantillons pour les années 1993:2020
+
+temp %>% 
+    filter(annee %in% my_year, ech_id %in% manque) %>% 
+    group_by(annee) %>% 
+    summarise(n_tot = NROW(annee), 
+              n_lu = NROW(annee[!is.na(age)]),
+              n_non_lu = n_tot - n_lu) %>% 
+    ungroup %>% 
+    arrange(desc(n_non_lu))
+# Pour ces échantillons, des milliers de spécimens n'ont pas eu leur otolithe lue
+
+
+temp %>% filter(ech_id %in% manque) %>% group_by(annee) %>% summarise(n = n_distinct(ech_id)) %>% ungroup
+# Les années 1994 à 1997 sont problématiques.
+temp %>% filter(ech_id %in% manque) %>% group_by(engin) %>% summarise(n = n_distinct(ech_id)) %>% ungroup
+# Surtout du filet maillant et de la palangre. J'ai l'impression que ce sont des échantillons provenant de PSfixe, puisque les autres engins étaient également utilisés au début de ce programme.
+
+vars <- intersect(names(lf), names(temp))
+max_id <- max(lf$id)
+
+ajout_lf <- temp %>% 
+            filter(ech_id %in% manque) %>% 
+            select_at(all_of(vars)) %>% 
+            mutate(div = ifelse(opano == "3Pn", "3Pn", substr(opano, 1,2)),
+                   n_mes = 1, # dans bio, une ligne par poisson
+                   etat_deb = "Inconnu", # information non-fournie dans bio
+                   esp_ech = 10, # dans bio, une ligne par poisson
+                   pds_deb = NA, # dans bio, une ligne par poisson
+                   pds_ech = NA, # dans bio, une ligne par poisson
+                   no_voy = as.character(no_voy), # pour que le merge fonctionne
+                   no_prov = as.character(no_prov), # pour que le merge fonctionne
+                   nbpc = as.character(nbpc))  # pour que le merge fonctionne
+ids <- ajout_lf %>% group_by(annee, ech_id) %>% summarise %>% ungroup %>% mutate(id = 1:nrow(.) + max_id)
+ajout_lf <- left_join(ajout_lf, ids, by = c("annee", "ech_id"))
+
+dim(ajout_lf) # 20358 obs et 24 var
+dim(lf) # 109138 obs et 34 var
+lf <- bind_rows(lf, ajout_lf)
+dim(lf) # 129496 obs et 34 var
+
+rm(a,b,manque, ajout_lf, vars, temp, ids)
+```
+
+## Validation des longueurs
+Je m'assure que les longueurs font du sens. Je ne regarde que les petites valeurs.
+```{r}
+lf %>% group_by(longueur) %>% count %>% ungroup # le 7 cm est à part du reste...
+lf %>% filter(longueur < 19) %>% select(annee, engin, longueur, ech_id) # Une morue de 7 cm pêchée à la palangre? Invraisemblable.
+lf %>% filter(ech_id == 56209) %>% ggplot(data = ., aes(x = longueur)) + geom_histogram(binwidth = 1)
+# Doit être une erreur de frappe. 
+# Comme je ne peux savoir si c'est 37 cm ou xx cm, je flag cette ligne comme outlier
+
+lf$outlier <- F # par défaut
+cor <- which(with(lf, longueur == 7)); length(cor) # 1 ligne
+lf$outlier[cor] <- T
+```
+
+## Validation des âges
+Je m'assure que les âges font du sens.
+```{r}
+bio %>% group_by(age) %>% count %>% as.data.frame() # pas de valeurs absurdes à 1ère vue. 1 seule valeur 1 an
+
+# Relation âge-longueur
+bio <- bio %>% group_by(age) %>% mutate(outlier = outlier(longueur, coef = 3)) %>% ungroup
+# Les valeurs étant au-dessus du 75e percentile ou en-dessous du 25e percentile par un facteur de 3 fois l'étendue interquartile 
+# sont jugées êtres des outliers.
+
+bio %>% filter(outlier == T) %>% select(annee, longueur, age, outlier) # 24 outliers initialement
+
+ggplot(data = bio %>% filter(annee %in% my_year), aes(x = longueur, fill = outlier)) +
+    geom_histogram() +
+    facet_wrap(~ age, scale = "free")
+# bizarre pour l'âge 1
+
+bio %>% filter(age == 1) %>% select(annee, longueur, age) # Lui aussi est un outlier. Impossible d'avoir 1 an/60 cm de long
+bio[bio$age == 1, "outlier"] <- T
+# Pour les vieilles morues, beaucoup de variabilité. Je pense que c'est possible
+
+if (langue == "fr"){
+  lab1 <- "Âge"
+  lab2 <- "Longueur (cm)"
+  lab3 <- "Valeur aberrante"
+} else {
+  lab1 <- "Age"
+  lab2 <- "Length (cm)"
+  lab3 <- "Outlier"
+}
+
+# Pour la figure, je n'utilise que les données de 1993--2020.
+
+dim(bio) # 85185 obs et 25 var
+temp <- bio %>% filter(annee %in% my_year)
+dim(temp) # 27386 obs et 25 var
+
+temp$outlier <- as.character(temp$outlier)
+temp[temp$outlier == "TRUE", "outlier"] <- lab3
+
+range(temp$longueur)
+brks_y <- seq(from = 10, to = 150, by = 10)
+labs_y <- brks_y
+labs_y[labs_y %% 25 > 0] <- ""
+
+brks_x <- min(temp$age):max(temp$age)
+labs_x <- brks_x
+
+# Nbre de morues âgées
+nb <- temp %>% group_by(age) %>% count %>% ungroup %>% mutate(lab = format(n, big.mark = bm, trim = T))
+
+graph1 <- ggplot(data = temp, aes(x = age, y = longueur, group = age)) +
+          geom_boxplot() +
+          geom_point(data = temp %>% filter(outlier == lab3), aes(color = outlier)) +
+          labs(x = lab1, y = lab2, color = NULL) +
+          scale_color_manual(values = "red") +
+          theme(legend.position = c(0,1),
+                legend.justification = c(0,1)) +
+          scale_y_continuous(breaks = brks_y, labels = labs_y) +
+          scale_x_continuous(breaks = brks_x, labels = labs_x, expand = c(0,0)) +
+          geom_text(data = nb, aes(x = age, y = -Inf, label = lab, vjust = -0.9))
+graph1
+
+bio %>% filter(annee %in% my_year, outlier == T) %>% nrow # 5 outliers pour la période d'intérêt
+bio %>% filter(outlier == T) %>% nrow # 25 outliers au total
+
+rm(temp)
+```
+
+# Observateurs en mer
+J'ai des débarquements de morues occasionnés par des crevettiers, mais je n'ai pas de données d'échantillonneurs à quai où des morues ont été mesurées pour cet engin. Je dois donc faire appel aux données d'observateurs en mer.
+```{r}
+catch %>% 
+  filter(annee %in% my_year, engin_fr == "Chalut à crevettes") %>%
+  group_by(annee) %>% summarise(deb = sum(catch, na.rm = T)) %>% 
+  ungroup
+```
+J'ai des débarquements à partir de 1993. Selon @Savard2013_fr, la grille séparatrice aurait été obligatoire à l'hiver 1993. Je ne peux donc pas regrouper le chalut à crevette avec les autres chaluts de fond, puisqu'on assume que les morues débarquées seront beaucoup plus petites.
+```{r}
+setdiff(lf %>% filter(annee %in% my_year, outlier == F) %>% pull(engin) %>% unique, 
+        bio %>% filter(annee %in% my_year, outlier == F) %>% pull(engin) %>% unique) 
+# tous les engins de lf sont dans bio
+bio %>% filter(annee %in% my_year, outlier == F) %>% pull(engin_fr) %>% unique
+```
+Je n'ai aucun débarquement de morues par des chaluttiers à crevette dans les données d'échantillonneurs à quai. Je vais devoir avoir recours aux données des observateurs en mer.
+```{r}
+load(dat_obs_1990_1998); dim(JOP1) # 22550 obs et 44 var. Données fournies par Hugues Benoît via courriel le 9 sept. 2021
+# représente les FL des morues capturées par des chaluts à crevette. La période 1990-1998 n'est actuellement pas disponible via la base de données et c'est pourquoi Hugues me fournit une copie qu'il avait sur son ordi personnel.
+
+unique(JOP1$spec) # juste de la morue
+unique(JOP1$mspec) # visait la crevette nordique
+
+names(JOP1) <- recode(names(JOP1), "act_no" = "no_voy", "sub_acti" = "id", "uarea" = "opano",
+                      "fish_len" = "longueur", "no_fish" = "n_mes", "wt_samp" = "pds_ech", "act_date" = "date")
+
+JOP1 %>% distinct(no_voy, id, cfvn) %>% nrow # 854 activités de pêche unique
+JOP1 %>% distinct(capt_no) %>% nrow # 854 activités de pêche unique. capt_no identifie chaque activité de pêche
+
+JOP1 %>% 
+  group_by(capt_no) %>% 
+  summarise_at(.vars = c("pds_ech", "wt_kept", "wt_dscrd"), .funs = n_distinct) %>% 
+  ungroup %>% 
+  summary # problème avec les pds_ech...
+# Pour une même activité, il semble que parfois, des échantillons aient été pris peut-être à différents moments durant la remontée 
+# de la capture à bord (ex: début, fin)
+# Je vais combiner les lignes
+
+JOP1 %>% 
+  group_by(capt_no) %>% 
+  summarise(n = n_distinct(pds_ech)) %>% 
+  ungroup %>% 
+  filter(n > 1) %>% 
+  pull(capt_no) %>% 
+  unique %>% 
+  length
+# 69 activités de la sorte
+
+# Je vais régler cette problématique. J'en profite pour ne conserver que les variables qui m'intéressent.
+library(lubridate)
+
+a <- JOP1 %>% 
+     group_by(capt_no) %>% 
+     summarise(pds_ech = sum(unique(pds_ech), na.rm = T),
+               opano = unique(opano),
+               wt_kept = unique(wt_kept),
+               wt_dscrd = unique(wt_dscrd),
+               pds_capt = wt_kept + wt_dscrd,
+               date = ymd(unique(date)),
+               annee = year(date)) %>% 
+     ungroup
+dim(a) # 854 obs et 8 var
+
+b <- JOP1 %>% 
+     group_by(capt_no, longueur) %>% 
+     summarise(n_mes = sum(n_mes)) %>% 
+     ungroup
+dim(b) # 18744 obs et 3 var = moins de lignes que JOP1, car multiples échantillons par capt_no combinés.
+
+ajout_lf <- full_join(a, b, by = "capt_no"); dim(ajout_lf) # 18744 obs et 10 var
+ajout_lf
+rm(a,b)
+
+cor <- which(with(ajout_lf, pds_ech > pds_capt)); length(cor) # 1466 lignes
+ids <- ajout_lf[cor, ] %>% distinct(capt_no) %>% pull(capt_no) %>% unique
+length(ids)
+# Je n'utiliserai pas ces activités (41), puisque le poids de l'échantillon ne peut être > que celui de capture
+
+table(ajout_lf$annee, useNA = "always")
+
+dim(ajout_lf) # 18744 obs et 10 var
+ajout_lf <- ajout_lf %>% 
+            filter(!(capt_no %in% ids)) %>% 
+            filter(annee %in% my_year) # je ne garde que les donneées dans les années d'intérêt
+dim(ajout_lf) # 1701 obs et 10 var. On perd bcp de lignes (le gros des données était de 1990:1992)
+
+ajout_lf %>% 
+  group_by(capt_no) %>% 
+  summarise_at(.vars = c("pds_ech", "pds_capt"), .funs = unique) %>% 
+  ungroup %>% 
+  ggplot(data = ., aes(x = pds_capt, y = pds_ech)) +
+  geom_point(shape = 21, alpha = 0.7) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = 2)
+# La majeure partie du temps, toute la capture est échantillonnée
+
+range(ajout_lf$date) # du 18 avril 1993 au 3 sept 1998
+
+unique(ajout_lf$longueur) # au cm près = parfait
+```
+Maintenant avec les données post-1998.
+```{r}
+load(dat_obs_1999); str(obs) # liste avec 2 jeux de données
+
+# Données de captures
+a <- obs$catch %>% 
+     mutate(opano = div_nafo,
+            pds_capt = pdv_cons + pdv_rej) %>% 
+     filter(esp_vis == 2211, esp_capt == 10) %>%  # visant la crevette nordique et ayant débarqué de la morue franche
+     select(no_voy, no_affec, no_sorti, trait, opano, date, annee, pds_capt)
+dim(a) # 5522 obs et 8 var
+a %>% distinct(no_voy, no_affec, no_sorti, trait) %>% nrow # ok. 1 ligne par trait de pêche
+# no_voy, no_affec, no_sorti, trait sont les variables à utiliser pour la clé pour identifier une activité de pêche.
+range(a$date) # du 2 avril 1999 au 19 sept 2020
+
+# Données de LF
+b <- obs$fl %>% 
+     filter(espece == 10) %>% # juste la morue
+     mutate(longueur = round(longueur, 0)) %>% # pour avoir des valeurs au cm près 
+     group_by(no_voy, no_affec, no_sorti, trait, longueur) %>% 
+     summarise(n_mes = sum(nb_pois)) %>% 
+     ungroup
+dim(b) # 142199 obs et 6 var
+
+d <- obs$fl %>% 
+     filter(espece == 10) %>% 
+     group_by(no_voy, no_affec, no_sorti, trait) %>% 
+     summarise(pds_ech = sum(unique(pds_ech))) %>% # peut y avoir plus d'un échantillon par activité de pêche (ex: début/fin)
+     ungroup
+dim(d) # 8738 obs et 6 var
+obs$fl %>% filter(espece == 10) %>% distinct(no_voy, no_affec, no_sorti, trait) %>% nrow # 8738
+
+b <- full_join(b, d, by = c("no_voy", "no_affec", "no_sorti", "trait"))
+dim(b) # 142199 obs et 7 var
+
+# Combinaison
+dim(b) # 142199 obs et 7 var
+ajout_lf2 <- left_join(b, a, by = c("no_voy", "no_affec", "no_sorti", "trait")) %>% 
+             filter(!is.na(date)) # les lignes où date est NA sont des lignes où l'appariement n'a pas fonctionné
+dim(ajout_lf2) # 8110 obs et 11 var
+rm(a,b,d)
+range(ajout_lf2$date) # du 2 avril 1999 au 19 sept 2020
+
+ajout_lf2 %>% 
+  group_by(no_voy, no_affec, no_sorti, trait) %>% 
+  summarise_at(.vars = c("pds_ech", "pds_capt"), .funs = unique) %>% 
+  ungroup %>% 
+  ggplot(data = ., aes(x = pds_capt, y = pds_ech)) +
+  geom_point(shape = 21, alpha = 0.7) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = 2)
+```
+Pour chaque activité de pêche, je vais leur assigner un id unique (*ech_id*).
+```{r}
+val_max <- max(lf$ech_id); val_max # 65965
+
+# Données 1990-1998
+cle <- "capt_no"
+echs <- ajout_lf %>% distinct_at(cle) %>% mutate(ech_id = 1:nrow(.)) %>% mutate(ech_id = ech_id + val_max)
+dim(ajout_lf) # 1701 obs et 10 var
+ajout_lf <- left_join(ajout_lf, echs, by = cle)
+dim(ajout_lf) # 1701 obs et 11 var
+
+# Données 1999-maintenant
+val_max <- max(ajout_lf$ech_id); val_max # 66116
+cle <- c("no_voy", "no_affec", "no_sorti", "trait")
+echs <- ajout_lf2 %>% distinct_at(cle) %>% mutate(ech_id = 1:nrow(.)) %>% mutate(ech_id = ech_id + val_max)
+dim(ajout_lf2) # 8110 obs et 11 var
+ajout_lf2 <- left_join(ajout_lf2, echs, by = cle)
+dim(ajout_lf2) # 8110 obs et 12 var
+rm(echs, cle, val_max)
+```
+
+Combinaison
+```{r}
+ajout_lf <- bind_rows(ajout_lf, ajout_lf2) %>% 
+            mutate(engin = "ST",
+                   engin_fr = "Chalut à crevette",
+                   engin_en = "Shrimp trawl",
+                   source = "observateur", # pour laisser une trace de la provenance de ces données
+                   mois = month(date)) %>%  
+            filter(grepl("3Pn|4R|4S", opano)) %>%  # juste les données de 3Pn4RS désirées
+            select(ech_id, annee, opano, mois, date, engin, engin_fr, engin_en, source, longueur, n_mes, pds_ech)
+dim(ajout_lf) # 7640 obs et 12 var
+n_distinct(ajout_lf$ech_id) # 1546 échantillons
+```
+Vérification des outliers de longueur.
+```{r}
+ajout_lf %>% group_by(longueur) %>% count %>% ungroup # ok
+
+test <- ajout_lf
+range(ajout_lf$longueur)
+
+bin <- 5
+brks <- seq(from = 0, to = 125, by = bin); brks
+
+test$cl <- NA # vide initialement
+for (i in brks){
+  cor <- which(with(test, longueur >= i & longueur < (i + bin)))
+  test$cl[cor] <- i + (bin / 2) # pour être au milieu de la bin
+  rm(cor)
+}
+
+test %>% 
+  group_by(cl) %>% 
+  summarise(n_mes = sum(n_mes)) %>% 
+  ungroup %>% 
+  ggplot(data = ., aes(x = cl, y = n_mes)) +
+  geom_line()
+# parfait
+rm(test)
+
+ajout_lf$outlier <- F # par défaut
+```
+Je peux maintenant ajouter à `lf` ces 2 jeux de données.
+```{r}
+lf <- bind_rows(lf %>% mutate(source = "quai"), ajout_lf)
+dim(lf) # 137136 obs et 38 var
+rm(ajout_lf, ajout_lf2, JOP1)
+```
+
+# Relevé multispécifique du nGSL
+Bien que les observateurs en mer récoltent des otolithes, je n'ai pas de données d'âge associées à ce programme pour utiliser dans les analyses. Après discussion avec Hugues, on en est venu à la conclusion qu'il était approprié d'utiliser les données d'âge du relevé multispécifique du nGSL.
+```{r}
+load(intrant_ngsl) # ouvre ngsl
+# Je vais prendre toutes les morues disponibles, en autant que des valeurs d'âge/longueur sont présentes
+
+dat <- ngsl$carbio %>% 
+       filter(!is.na(age), !is.na(longueur)) %>% 
+       mutate(longueur = round(longueur/10, 0)) %>% # en cm, arrondi à l'entier
+       select(nav, rel, trait, longueur, age) %>% 
+       left_join(., ngsl$set %>% select(nav, rel, trait, annee, opano), by = c("nav", "rel", "trait")) %>% 
+       filter(annee %in% my_year, opano %in% opanos) %>% # juste 3Pn4RS
+       select(annee, longueur, age)
+dim(dat) # 19915 obs et 3 var
+```
+Pour chaque cellule de catch où l'engin est le chalut à crevettes, je vais me créer un échantillon bidon où j'utiliserai les données annuelles du relevé nGSL.
+```{r}
+ajout_bio <- dat %>% 
+             mutate(mois = 8, # le relevé nGSL est essentiellement au août
+                    engin = "ST",
+                    engin_fr = "Chalut à crevette",
+                    engin_en = "Shrimp trawl",
+                    source = "nGSL")
+dim(ajout_bio) # 19915 obs et 8 var
+
+val_max <- max(bio$ech_id); val_max # 65965
+ids <- tibble(annee = my_year) %>% mutate(id = 1:nrow(.)) %>% mutate(ech_id = id + val_max)
+
+dim(ajout_bio) # 19915 obs et 8 var
+ajout_bio <- left_join(ajout_bio, ids %>% select(annee, ech_id), by = "annee")
+dim(ajout_bio) # 19915 obs et 9 var
+rm(val_max, ids, ngsl, dat)
+```
+Je valide ensuite les âges.
+```{r}
+ajout_bio %>% group_by(age) %>% count %>% as.data.frame() # pas de valeurs absurdes à 1ère vue. 1 seule valeur 1 an
+
+# Relation âge-longueur
+ajout_bio <- ajout_bio %>% group_by(age) %>% mutate(outlier = outlier(longueur, coef = 3)) %>% ungroup
+# Les valeurs étant au-dessus du 75e percentile ou en-dessous du 25e percentile par un facteur de 3 fois l'étendue interquartile 
+# sont jugées êtres des outliers.
+
+ajout_bio %>% filter(outlier == T) %>% select(annee, longueur, age, outlier) # 2 outliers initialement
+
+ggplot(data = ajout_bio %>% filter(annee %in% my_year), aes(x = longueur, fill = outlier)) +
+    geom_histogram() +
+    facet_wrap(~ age, scale = "free")
+# Je vais supprimer ces 2 outliers
+dim(ajout_bio) # 19915 obs et 10 var
+ajout_bio <- ajout_bio %>% filter(outlier == F)
+dim(ajout_bio) # 19913 obs et 10 var
+```
+Je peux maintenant ajouter à `bio` ces données.
+```{r}
+dim(bio) # 85185 obs et 25 var
+bio <- bind_rows(bio %>% mutate(source = "quai"), ajout_bio)
+dim(bio) # 105098 obs et 26 var
+rm(ajout_bio)
+```
+
+# Classes d'engins
+Je me base en partie sur les regroupements présentés par @Frechet1986a.
+
+## des débarquements
+```{r}
+setdiff(catch %>% filter(source == "NAFO 21B", annee %in% my_year) %>% pull(engin) %>% unique,
+        catch %>% filter(source == "ZIFF", annee %in% my_year) %>% pull(engin) %>% unique)
+# NAFO 21B ne fournit aucun engin qui n'est pas mentionné dans les données ZIFF
+
+engins_deb <- catch %>% 
+              filter(source == "ZIFF", !is.na(engin), annee %in% my_year) %>% 
+              distinct(engin, engin_fr, engin_en, engin_cat) %>% 
+              mutate(engin_groupe = as.character(NA)) %>% # vide initialement
+              arrange(engin)
+dim(engins_deb) # 21 obs et 5 var
+
+
+if (langue == "fr"){
+  grp <- c("Chalut à crevette", "Autres chaluts", "Seines", "Filets maillants", "Palangres", "Engins manuels", "Trappes", 
+           "Autres / inconnus")
+} else {
+  grp <- c("Shrimp trawl", "Other trawls", "Seines", "Gillnets", "Longlines", "Hand gear", "Traps", "Others / unknown")
+}
+
+engins_deb[engins_deb$engin %in% c(19), "engin_groupe"] <- grp[1]
+engins_deb[engins_deb$engin %in% c(11:13, 15:16, 18), "engin_groupe"] <- grp[2]
+engins_deb[engins_deb$engin %in% c(21:22), "engin_groupe"] <- grp[3]
+engins_deb[engins_deb$engin %in% c(41), "engin_groupe"] <- grp[4]
+engins_deb[engins_deb$engin %in% c(50:51), "engin_groupe"] <- grp[5]
+engins_deb[engins_deb$engin %in% c(53,55,59), "engin_groupe"] <- grp[6]
+engins_deb[engins_deb$engin %in% c(61,62,67,68), "engin_groupe"] <- grp[7]
+engins_deb[engins_deb$engin %in% c(71,99), "engin_groupe"] <- grp[8]
+
+table(engins_deb$engin_groupe, useNA = "always") # 0 valeur NA = parfait
+engins_deb$engin_groupe <- factor(engins_deb$engin_groupe, levels = grp, ordered = T)
+```
+`catch` contient des valeurs *NA* pour certaines colonnes associées aux engins. Je vais corriger ça.
+```{r}
+catch[, c("engin_cat", "engin_fr", "engin_en")] <- NULL
+cor <- which(with(catch, is.na(engin))); length(cor) # 1681
+catch$engin[cor] <- 99 # sera dans le groupe Autres / inconnus
+
+dim(catch) # 593461 obs et 11 var
+catch <- left_join(catch, engins_deb %>% select(engin, engin_fr, engin_en), by = "engin")
+dim(catch) # 593461 obs et 13 var
+
+save(catch, file = dat_catch)
+```
+
+Je vais également rajouter de l'information sur l'importance de ces engins dans la pêche.
+```{r}
+ajout_tot <- catch %>% 
+             filter(annee %in% my_year, !is.na(catch)) %>% 
+             group_by(engin) %>% 
+             summarise(catch = sum(catch)) %>% 
+             ungroup %>% 
+             mutate(perc_tot = catch / sum(catch) * 100) %>% 
+             select(-catch) # inutile
+         
+ajout_min_max <- catch %>% 
+                 filter(annee %in% my_year, !is.na(catch)) %>% 
+                 mutate(annee = factor(annee), 
+                        engin = factor(engin)) %>% 
+                 group_by(annee, engin, .drop = F) %>% 
+                 summarise(catch = sum(catch)) %>% 
+                 group_by(annee) %>% 
+                 mutate(perc = catch / sum(catch) * 100) %>% 
+                 group_by(engin) %>% 
+                 summarise(min = min(perc),
+                           max = max(perc),
+                           ans = NROW(engin[perc > 0])) %>% 
+                 ungroup
+
+dim(engins_deb) # 21 obs et 5 var
+engins_deb <- left_join(engins_deb, ajout_tot, by = "engin") %>% 
+              left_join(., ajout_min_max, by = "engin")
+dim(engins_deb) # 21 obs et 9 var
+
+save(engins_deb, file = dat_engin_deb)
+rm(ajout_tot, ajout_min_max)
+```
+
+## des observateurs à quai
+```{r}
+setdiff(lf %>% filter(annee %in% my_year, outlier == F) %>% pull(engin) %>% unique, 
+        bio %>% filter(annee %in% my_year, outlier == F) %>% pull(engin) %>% unique) 
+# tous les engins de lf sont dans bio, même ST qui provient des données du relevé nGSL
+setdiff(bio %>% filter(annee %in% my_year, outlier == F) %>% pull(engin) %>% unique, 
+        lf %>% filter(annee %in% my_year, outlier == F) %>% pull(engin) %>% unique) 
+# tous les engins de bio sont dans lf
+
+engins_obs <- bio %>% 
+              filter(annee %in% my_year, outlier == F) %>% # pour n'avoir que ceux observés de 1993 à 2020
+              distinct(engin, engin_fr, engin_en) %>% 
+              mutate(engin_groupe = as.character(NA)) # vide initialement)
+dim(engins_obs) # 14 obs et 4 var
+engins_obs # correction requise pour SDN
+cor <- which(with(engins_obs, engin == "SDN")); length(cor) # 1 ligne
+engins_obs$engin_fr[cor] <- "Seine danoise, écossaise, ou pairée (2 navires)"
+engins_obs$engin_en[cor] <- "Danish, Scotish or paired (2 boats) seine"
+
+cor <- which(with(engins_obs, engin %in% c("ST")))
+length(cor) # 1 ligne
+engins_obs$engin_groupe[cor] <- grp[1]
+
+cor <- which(with(engins_obs, engin %in% c("OTB2", "OTM")))
+length(cor) # 2 lignes
+engins_obs$engin_groupe[cor] <- grp[2]
+
+cor <- which(with(engins_obs, engin %in% c("SDN", "PS")))
+length(cor) # 2 lignes
+engins_obs$engin_groupe[cor] <- grp[3]
+
+cor <- which(with(engins_obs, engin %in% c("GN", "GNS")))
+length(cor) # 2 lignes
+engins_obs$engin_groupe[cor] <- grp[4]
+
+cor <- which(with(engins_obs, engin %in% c("LL", "LLS")))
+length(cor) # 2 lignes
+engins_obs$engin_groupe[cor] <- grp[5]
+
+cor <- which(with(engins_obs, engin %in% c("LHP", "LLG", "LX")))
+length(cor) # 3 lignes
+engins_obs$engin_groupe[cor] <- grp[6]
+
+cor <- which(with(engins_obs, engin %in% c("FPN", "FIX")))
+length(cor) # 2 lignes
+engins_obs$engin_groupe[cor] <- grp[7]
+
+cor <- which(with(engins_obs, is.na(engin_groupe)))
+length(cor) # 0 ligne
+#engins_obs$engin_groupe[cor] <- grp[8] # autres engins ou inconnus. Non-utilisé ici.
+
+table(engins_obs$engin_groupe, useNA = "always") # 0 valeur NA = parfait
+engins_obs$engin_groupe <- factor(engins_obs$engin_groupe, levels = grp[1:7], ordered = T)
+
+save(engins_obs, file = dat_engin_obs)
+```
+
+# Tableaux résumés 
+## FL {.tabset}
+### `table1`: état au débarquement
+```{r}
+etat <- lf %>% 
+        filter(annee %in% my_year, outlier == F, source == "quai") %>% # seulement les données à quai
+        distinct(id, .keep_all = T) %>% # 1 ligne par échantillon de FL
+        group_by(annee, etat_deb) %>% 
+        count() %>% 
+        ungroup %>% 
+        mutate(etat_deb = gsub(" ", "_", etat_deb)) %>% 
+        pivot_wider(names_from = "etat_deb", values_from = "n", values_fill = 0)
+
+pese <- lf %>% 
+        filter(annee %in% my_year, outlier == F, source == "quai") %>% # seulement les données à quai 
+        distinct(id, .keep_all = T) %>% # 1 ligne par échantillon de FL
+        group_by(annee) %>% 
+        summarise(n_total = n(),
+                  nb_pds_ech = NROW(pds_ech[is.na(pds_ech)]),
+                  perc_ech = (nb_pds_ech / n_total) * 100,
+                  nb_pds_deb = NROW(pds_deb[is.na(pds_deb)]),
+                  perc_deb = (nb_pds_deb / n_total) * 100) %>% 
+        ungroup
+
+table1 <- left_join(etat, pese, by = "annee")
+tot <- table1 %>% 
+       summarise(across(.cols = c(2:6, 8), .fns = sum)) %>% 
+       mutate(annee = "Total")
+tot <- left_join(tot, tot %>% 
+                      mutate(perc_ech = round(nb_pds_ech / n_total * 100, 1),
+                             perc_deb = round(nb_pds_deb / n_total * 100, 1)) %>% 
+                      select(annee, perc_ech, perc_deb),
+                 by = "annee")
+        
+table1 <- bind_rows(table1 %>% mutate(annee = as.character(annee)), tot)
+dim(table1) # 29 obs et 9 var
+rm(etat, pese, tot)
+
+if (langue == "fr"){
+  cap <- "Inventaire des échantillons de fréquence de longueur selon l’état au débarquement et l’année de prélèvement.  Le nombre annuel d’échantillons dont soit le poids d’échantillon ou le poids du débarquement n’est pas fourni est également montré. Source: données du programme d'échantillonnage commercial du MPO."
+  col_names <- c("Année", "Entier", "Éviscéré non-étêté", "Inconnu", "Total", rep(c("Nb", "\\% du total"), 2))
+  headers <- c("", "État au débarquement" = 4, "Échantillons non-pesés" = 2, "Débarquements non-pesés" = 2)
+} else {
+  cap <- "Inventory of length frequency samples according to the state at landing and the year of collection. The annual number of samples where either the sample weight or the landing weight is not reported are provided. Source: DFO port sampling program data."
+  col_names <- c("Year", "Whole", "Gutted head on", "Unknown", "Total", rep(c("Nb", "\\% of total"), 2))
+  headers <- c("", "State at landing" = 4, "Unweighted samples" = 2, "Unweighted landings" = 2)
+}
+
+cor <- which(with(table1, annee == "Total"))
+
+table1 %>% 
+  mutate_at(.vars = c("perc_ech", "perc_deb"), .funs = function(x) round(x, 1)) %>% 
+  mutate_at(.vars = 2:ncol(table1), .funs = function(x) ifelse(x == 0, "", format(x, big.mark = bm, decimal.mark = dm))) %>% 
+  kable(caption = cap, col.names = col_names, longtable = F, align = c("l", rep("r", ncol(.)-1))) %>% 
+  kable_styling(bootstrap_options = c("hover", "striped", "condensed"), full_width = F, fixed_thead = T) %>% 
+  add_header_above(header = headers, bold = T) %>% 
+  row_spec(row = cor, bold = T) # ligne total en foncé
+rm(cor)
+```
+
+### `table2`: ~ année--mois
+```{r}
+table2 <- expand_grid(annee = c(my_year, "Total"), mois = c(1:12, "Total")) # cellules année-mois à remplir
+ajout1 <- lf %>% 
+          filter(annee %in% my_year, outlier == F, source == "quai") %>% 
+          group_by(annee, mois) %>% 
+          summarise(nb_ech = n_distinct(ech_id),
+                    nb_morues = sum(n_mes, na.rm = T)) %>% 
+          ungroup %>% 
+          mutate(mois = as.character(mois),
+                 annee = as.character(annee))
+ajout2 <- ajout1 %>% 
+          group_by(annee) %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    mois = "Total") %>% 
+          ungroup
+ajout3 <- ajout1 %>% 
+          group_by(mois) %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    annee = "Total") %>% 
+          ungroup
+ajout4 <- ajout1 %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    annee = "Total",
+                    mois = "Total") %>% 
+          ungroup
+ajout <- bind_rows(ajout1, ajout2, ajout3, ajout4) %>% 
+         mutate(nb_ech = format(nb_ech, big.mark = bm, trim = T),
+                nb_morues = format(nb_morues, big.mark = bm, trim = T),
+                label = ifelse(nb_ech == 0, NA, paste0(nb_ech, " (", nb_morues, ")")))
+dim(table2) # 377 obs et 2 var
+table2 <- full_join(table2, ajout, by = c("annee", "mois"))
+dim(table2) # 377 obs et 5 var
+table2 <- table2 %>% pivot_wider(id_cols = "annee", names_from = "mois", names_prefix = "M", values_from = "label")
+dim(table2) # 29 obs et 14 var
+
+if (langue == "fr"){
+  mois <- c("Jan.", "Fév.", "Mar.", "Avr.", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc.")
+  cap <- "Effectif en échantillons de morues franches collectés pour les fréquences de longueur dans la pêche commerciale des Divisions OPANO 3Pn--4RS pour la période 1993--2020, ventilé par année et mois. Les valeurs entre parenthèses sont les effectifs en morues. Source: données du programme d'échantillonnage commercial du MPO."
+  col_names <- c("Année", mois, "Total")
+} else {
+  mois <- c("Jan.", "Feb.", "Mar.", "Apr.", "May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.")
+  cap <- "Number of Atlantic cod samples collected for length frequencies in the commercial fishery of NAFO Divisions 3Pn--4RS for the period 1993--2020, by year and month. Values in brackets are the number of cods. Source: DFO dockside monitoring program data."
+  col_names <- c("Year", mois, "Total")
+}
+
+cor <- which(with(table2, annee == "Total"))
+
+table2 %>% 
+  mutate_all(.funs = function(x) ifelse(is.na(x), "", x)) %>%  
+  kable(caption = cap, col.names = col_names, longtable = F, align = c("l", rep("r", ncol(.)-1))) %>% 
+  kable_styling(bootstrap_options = c("hover", "striped", "condensed"), full_width = F, fixed_thead = T) %>% 
+  landscape() %>% 
+  row_spec(row = cor, bold = T) # ligne total en foncé
+rm(cor)
+```
+
+### `table3`: ~ année--OPANO
+```{r}
+op <- unique(lf$opano); op
+table3 <- expand_grid(annee = c(my_year, "Total"), opano = c(op, "Total")) # cellules année-opano à remplir
+ajout1 <- lf %>% 
+          filter(annee %in% my_year, outlier == F, source == "quai") %>% 
+          group_by(annee, opano) %>% 
+          summarise(nb_ech = n_distinct(ech_id),
+                    nb_morues = sum(n_mes, na.rm = T)) %>% 
+          ungroup %>% 
+          mutate(annee = as.character(annee))
+ajout2 <- ajout1 %>% 
+          group_by(annee) %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    opano = "Total") %>% 
+          ungroup
+ajout3 <- ajout1 %>% 
+          group_by(opano) %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    annee = "Total") %>% 
+          ungroup
+ajout4 <- ajout1 %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    annee = "Total",
+                    opano = "Total") %>% 
+          ungroup
+ajout <- bind_rows(ajout1, ajout2, ajout3, ajout4) %>% 
+         mutate(nb_ech = format(nb_ech, big.mark = bm, trim = T),
+                nb_morues = format(nb_morues, big.mark = bm, trim = T),
+                label = ifelse(nb_ech == 0, NA, paste0(nb_ech, " (", nb_morues, ")")))
+dim(table3) # 435 obs et 2 var
+table3 <- full_join(table3, ajout, by = c("annee", "opano"))
+dim(table3) # 435 obs et 5 var
+table3 <- table3 %>% pivot_wider(id_cols = "annee", names_from = "opano", values_from = "label")
+dim(table3) # 29 obs et 16 var
+names(table3) <- recode(names(table3), "4R" = "4Ru", "4S" = "4Su")
+op <- names(table3)[2:(ncol(table3) - 1)]
+
+if (langue == "fr"){
+  cap <- "Effectif en échantillons de morues franches collectés pour les fréquences de longueur dans la pêche commerciale des Divisions OPANO 3Pn--4RS pour la période 1993--2020, ventilé par année et zone unitaire de l'OPANO. Les valeurs entre parenthèses sont les effectifs en morues. Source: données du programme d'échantillonnage commercial du MPO."
+  col_names <- c("Année", op, "Total")
+} else {
+  cap <- "Number of Atlantic cod samples collected for length frequencies in the commercial fishery of NAFO Divisions 3Pn--4RS for the period 1993--2020, by year and NAFO sub-division. Values in brackets are the number of cods. Source: DFO dockside monitoring program data."
+  col_names <- c("Year", op, "Total")
+}
+
+cor <- which(with(table3, annee == "Total"))
+
+table3 %>% 
+  mutate_all(.funs = function(x) ifelse(is.na(x), "", x)) %>% 
+  kable(caption = cap, col.names = col_names, longtable = F, align = c("l", rep("r", ncol(.)-1))) %>% 
+  kable_styling(bootstrap_options = c("hover", "striped", "condensed"), full_width = F, fixed_thead = T) %>% 
+  landscape() %>% 
+  row_spec(row = cor, bold = T) # ligne total en foncé
+
+rm(op)
+```
+
+### `table4`: ~ année--*engin_cat*
+```{r}
+engins <- levels(engins_obs$engin_groupe); engins
+table4 <- expand_grid(annee = c(my_year, "Total"), engin_groupe = c(engins, "Total")) # cellules année-engin à remplir
+ajout1 <- lf %>% 
+          filter(annee %in% my_year, outlier == F, source == "quai") %>% 
+          left_join(., engins_obs, by = "engin") %>% 
+          group_by(annee, engin_groupe) %>% 
+          summarise(nb_ech = n_distinct(ech_id),
+                    nb_morues = sum(n_mes, na.rm = T)) %>% 
+          ungroup %>% 
+          mutate(annee = as.character(annee))
+ajout2 <- ajout1 %>% 
+          group_by(annee) %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    engin_groupe = "Total") %>% 
+          ungroup
+ajout3 <- ajout1 %>% 
+          group_by(engin_groupe) %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    annee = "Total") %>% 
+          ungroup
+ajout4 <- ajout1 %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    annee = "Total",
+                    engin_groupe = "Total") %>% 
+          ungroup
+ajout <- bind_rows(ajout1, ajout2, ajout3, ajout4) %>% 
+         mutate(nb_ech = format(nb_ech, big.mark = bm, trim = T),
+                nb_morues = format(nb_morues, big.mark = bm, trim = T),
+                label = ifelse(nb_ech == 0, NA, paste0(nb_ech, " (", nb_morues, ")")))
+dim(table4) # 232 obs et 2 var
+table4 <- full_join(table4, ajout, by = c("annee", "engin_groupe"))
+dim(table4) # 232 obs et 5 var
+table4 <- table4 %>% pivot_wider(id_cols = "annee", names_from = "engin_groupe", values_from = "label")
+dim(table4) # 29 obs et 9 var
+engin <- names(table4)[2:(ncol(table4) - 1)]
+
+if (langue == "fr"){
+  cap <- "Effectif en échantillons de morues franches collectés pour les fréquences de longueur dans la pêche commerciale des Divisions OPANO 3Pn--4RS pour la période 1993--2020, ventilé par année et regroupement d'engin. Les valeurs entre parenthèses sont les effectifs en morues. Source: données du programme d'échantillonnage commercial du MPO."
+  col_names <- c("Année", engin, "Total")
+} else {
+  cap <- "Number of Atlantic cod samples collected for length frequencies in the commercial fishery of NAFO Divisions 3Pn--4RS for the period 1993--2020, by year and gear grouping. Values in brackets are the number of cods. Source: DFO dockside monitoring program data."
+  col_names <- c("Year", engin, "Total")
+}
+
+cor <- which(with(table4, annee == "Total"))
+
+table4 %>% 
+  mutate_all(.funs = function(x) ifelse(is.na(x), "", x)) %>% 
+  kable(caption = cap, col.names = col_names, longtable = F, align = c("l", rep("r", ncol(.)-1))) %>% 
+  kable_styling(bootstrap_options = c("hover", "striped", "condensed"), full_width = F, fixed_thead = T) %>% 
+  landscape() %>% 
+  row_spec(row = cor, bold = T) # ligne total en gras
+
+rm(cor, engins)
+```
+
+## Âge {.tabset}
+### `table5`: ~ année--mois
+```{r}
+table5 <- expand_grid(annee = c(my_year, "Total"), mois = c(1:12, "Total")) # cellules année-mois à remplir
+ajout1 <- bio %>% 
+          filter(annee %in% my_year, outlier == F, source == "quai") %>% 
+          group_by(annee, mois) %>% 
+          summarise(nb_ech = n_distinct(ech_id),
+                    nb_morues = n()) %>% 
+          ungroup %>% 
+          mutate(mois = as.character(mois),
+                 annee = as.character(annee))
+ajout2 <- ajout1 %>% 
+          group_by(annee) %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    mois = "Total") %>% 
+          ungroup
+ajout3 <- ajout1 %>% 
+          group_by(mois) %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    annee = "Total") %>% 
+          ungroup
+ajout4 <- ajout1 %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    annee = "Total",
+                    mois = "Total") %>% 
+          ungroup
+ajout <- bind_rows(ajout1, ajout2, ajout3, ajout4) %>% 
+         mutate(nb_ech = format(nb_ech, big.mark = bm, trim = T),
+                nb_morues = format(nb_morues, big.mark = bm, trim = T),
+                label = ifelse(nb_ech == 0, NA, paste0(nb_ech, " (", nb_morues, ")")))
+dim(table5) # 377 obs et 2 var
+table5 <- full_join(table5, ajout, by = c("annee", "mois"))
+dim(table5) # 377 obs et 5 var
+table5 <- table5 %>% pivot_wider(id_cols = "annee", names_from = "mois", names_prefix = "M", values_from = "label")
+dim(table5) # 29 obs et 14 var
+
+if (langue == "fr"){
+  mois <- c("Jan.", "Fév.", "Mar.", "Avr.", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc.")
+  cap <- "Effectif en échantillons de morues franches collectés pour les lectures d'âge dans la pêche commerciale des Divisions OPANO 3Pn--4RS pour la période 1993--2020, ventilé par année et mois. Les valeurs entre parenthèses sont les effectifs en morues. Source: données du programme d'échantillonnage commercial du MPO."
+  col_names <- c("Année", mois, "Total")
+} else {
+  mois <- c("Jan.", "Feb.", "Mar.", "Apr.", "May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.")
+  cap <- "Number of Atlantic cod samples collected for age readings in the commercial fishery of NAFO Divisions 3Pn--4RS for the period 1993--2020, by year and month. Values in brackets are the number of cods. Source: DFO dockside monitoring program data."
+  col_names <- c("Year", mois, "Total")
+}
+
+cor <- which(with(table5, annee == "Total"))
+
+table5 %>% 
+  mutate_all(.funs = function(x) ifelse(is.na(x), "", x)) %>%  
+  kable(caption = cap, col.names = col_names, longtable = F, align = c("l", rep("r", ncol(.)-1))) %>% 
+  kable_styling(bootstrap_options = c("hover", "striped", "condensed"), full_width = F, fixed_thead = T) %>% 
+  landscape() %>% 
+  row_spec(row = cor, bold = T) # ligne total en foncé
+rm(cor)
+```
+
+### `table6`: ~ année--OPANO
+```{r}
+op <- sort(unique(bio$opano)); op
+table6 <- expand_grid(annee = c(my_year, "Total"), opano = c(op, "Total")) # cellules année-opano à remplir
+ajout1 <- bio %>% 
+          filter(annee %in% my_year, outlier == F, source == "quai") %>% 
+          group_by(annee, opano) %>% 
+          summarise(nb_ech = n_distinct(ech_id),
+                    nb_morues = n()) %>% 
+          ungroup %>% 
+          mutate(annee = as.character(annee))
+ajout2 <- ajout1 %>% 
+          group_by(annee) %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    opano = "Total") %>% 
+          ungroup
+ajout3 <- ajout1 %>% 
+          group_by(opano) %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    annee = "Total") %>% 
+          ungroup
+ajout4 <- ajout1 %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    annee = "Total",
+                    opano = "Total") %>% 
+          ungroup
+ajout <- bind_rows(ajout1, ajout2, ajout3, ajout4) %>% 
+         mutate(nb_ech = format(nb_ech, big.mark = bm, trim = T),
+                nb_morues = format(nb_morues, big.mark = bm, trim = T),
+                label = ifelse(nb_ech == 0, NA, paste0(nb_ech, " (", nb_morues, ")")))
+dim(table6) # 435 obs et 2 var
+table6 <- full_join(table6, ajout, by = c("annee", "opano"))
+dim(table6) # 435 obs et 5 var
+table6 <- table6 %>% pivot_wider(id_cols = "annee", names_from = "opano", values_from = "label")
+dim(table6) # 29 obs et 16 var
+op <- names(table6)[2:(ncol(table6) - 1)]
+names(table6) <- recode(names(table6), "4R" = "4Ru", "4S" = "4Su")
+
+if (langue == "fr"){
+  cap <- "Effectif en échantillons de morues franches collectés pour les lectures d'âge de longueur dans la pêche commerciale des Divisions OPANO 3Pn--4RS pour la période 1993--2020, ventilé par année et sous-division OPANO. Les valeurs entre parenthèses sont les effectifs en morues. Le 'u' dnas 4Ru et 4Su signifie 'non-déterminé'. Source: données du programme d'échantillonnage commercial du MPO."
+  col_names <- c("Année", op, "Total")
+} else {
+  cap <- "Number of Atlantic cod samples collected for age readings in the commercial fishery of NAFO Divisions 3Pn--4RS for the period 1993--2020, by year and NAFO sub-division. Values in brackets are the number of cods. Source: DFO dockside monitoring program data."
+  col_names <- c("Year", op, "Total")
+}
+
+cor <- which(with(table6, annee == "Total"))
+
+table6 %>% 
+  mutate_all(.funs = function(x) ifelse(is.na(x), "", x)) %>% 
+  kable(caption = cap, col.names = col_names, longtable = F, align = c("l", rep("r", ncol(.)-1))) %>% 
+  kable_styling(bootstrap_options = c("hover", "striped", "condensed"), full_width = F, fixed_thead = T) %>% 
+  landscape() %>% 
+  row_spec(row = cor, bold = T) # ligne total en foncé
+
+rm(op)
+```
+
+### `table7`: ~ année--*engin_cat*
+```{r}
+engins <- levels(engins_obs$engin_groupe)
+engins <- engins[-1] # on enlève les shrimp trawl = aucune morue âgée pour cet engin
+table7 <- expand_grid(annee = c(my_year, "Total"), engin_groupe = c(engins, "Total")) # cellules année-engin à remplir
+ajout1 <- bio %>% 
+          left_join(., engins_obs, by = "engin", source == "quai") %>% 
+          filter(annee %in% my_year, outlier == F) %>% 
+          group_by(annee, engin_groupe) %>% 
+          summarise(nb_ech = n_distinct(ech_id),
+                    nb_morues = n()) %>% 
+          ungroup %>% 
+          mutate(annee = as.character(annee))
+ajout2 <- ajout1 %>% 
+          group_by(annee) %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    engin_groupe = "Total") %>% 
+          ungroup
+ajout3 <- ajout1 %>% 
+          group_by(engin_groupe) %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    annee = "Total") %>% 
+          ungroup
+ajout4 <- ajout1 %>% 
+          summarise(nb_ech = sum(nb_ech, na.rm = T),
+                    nb_morues = sum(nb_morues, na.rm = T),
+                    annee = "Total",
+                    engin_groupe = "Total") %>% 
+          ungroup
+ajout <- bind_rows(ajout1, ajout2, ajout3, ajout4) %>% 
+         mutate(nb_ech = format(nb_ech, big.mark = bm, trim = T),
+                nb_morues = format(nb_morues, big.mark = bm, trim = T),
+                label = ifelse(nb_ech == 0, NA, paste0(nb_ech, " (", nb_morues, ")")))
+dim(table7) # 203 obs et 2 var
+table7 <- full_join(table7, ajout, by = c("annee", "engin_groupe"))
+dim(table7) # 203 obs et 5 var
+table7 <- table7 %>% pivot_wider(id_cols = "annee", names_from = "engin_groupe", values_from = "label")
+dim(table7) # 29 obs et 8 var
+
+engin <- names(table7)[2:(ncol(table7) - 1)]
+if (langue == "fr"){
+  cap <- "Effectif en échantillons de morues franches collectés pour les fréquences de longueur dans la pêche commerciale des Divisions OPANO 3Pn--4RS pour la période 1993--2020, ventilé par année et regroupement d'engins. Les valeurs entre parenthèses sont les effectifs en morues. Source: données du programme d'échantillonnage commercial du MPO."
+  col_names <- c("Année", engin, "Total")
+} else {
+  cap <- "Number of Atlantic cod samples collected for age readings in the commercial fishery of NAFO Divisions 3Pn--4RS for the period 1993--2020, by year and gear grouping. Values in brackets are the number of cods. Source: DFO dockside monitoring program data."
+  col_names <- c("Year", engin, "Total")
+}
+
+cor <- which(with(table7, annee == "Total"))
+
+table7 %>% 
+  mutate_all(.funs = function(x) ifelse(is.na(x), "", x)) %>% 
+  kable(caption = cap, col.names = col_names, longtable = F, align = c("l", rep("r", ncol(.)-1))) %>% 
+  kable_styling(bootstrap_options = c("hover", "striped", "condensed"), full_width = F, fixed_thead = T) %>% 
+  landscape() %>% 
+  row_spec(row = cor, bold = T) # ligne total en gras
+
+rm(cor, engins)
+```
+
+## Débarquements {.tabset}
+### `table8`: ~ année--mois
+```{r}
+table8 <- expand_grid(annee = c(my_year, "Total"), mois = c(1:12, "Total")) # cellules année-mois à remplir
+ajout1 <- catch %>% 
+          filter(annee %in% my_year) %>% 
+          group_by(annee, mois) %>% 
+          summarise(catch = sum(catch, na.rm = T) / 1000) %>% # en tonnes
+          ungroup %>% 
+          mutate(mois = as.character(mois),
+                 annee = as.character(annee))
+ajout2 <- ajout1 %>%
+          group_by(annee) %>% 
+          summarise(catch = sum(catch, na.rm = T)) %>% # en tonnes
+          ungroup %>% 
+          mutate(mois = "Total")
+ajout3 <- ajout1 %>%
+          group_by(mois) %>% 
+          summarise(catch = sum(catch, na.rm = T)) %>% # en tonnes
+          ungroup %>% 
+          mutate(annee = "Total")
+ajout4 <- ajout1 %>% 
+          summarise(catch = sum(catch, na.rm = T),
+                    annee = "Total", 
+                    mois = "Total") %>% 
+          ungroup
+ajout <- bind_rows(ajout1, ajout2, ajout3, ajout4)
+dim(table8) # 377 obs et 2 var
+table8 <- full_join(table8, ajout, by = c("annee", "mois"))
+dim(table8) # 377 obs et 3 var
+table8 <- table8 %>% pivot_wider(id_cols = "annee", names_from = "mois", names_prefix = "M", values_from = "catch")
+dim(table8) # 29 obs et 14 var
+rm(ajout1, ajout2, ajout3, ajout4, ajout)
+
+if (langue == "fr"){
+  mois <- c("Jan.", "Fév.", "Mar.", "Avr.", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc.")
+  cap <- "Débarquements reportés (t) de morue franche dans la pêche commerciale des Divisions OPANO 3Pn--4RS pour la période 1993--2020, ventilé par année et mois. Source: données ZIFF."
+  col_names <- c("Année", mois, "Total")
+} else {
+  mois <- c("Jan.", "Feb.", "Mar.", "Apr.", "May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.")
+  cap <- "Reported landings (t) of Atlantic cod in the commercial fishery of the NAFO Divisions 3Pn--4RS for the period 1993--2020, by year and month. Source: ZIFF data."
+  col_names <- c("Year", mois, "Total")
+}
+
+cor <- which(with(table8, annee == "Total"))
+
+table8 %>% 
+  mutate_if(.predicate = is.numeric, .funs = function(x) ifelse(is.na(x), "", format(round(x, 0), nsmall = 0, big.mark = bm))) %>%  
+  kable(caption = cap, col.names = col_names, longtable = F, align = c("l", rep("r", ncol(.)-1))) %>% 
+  kable_styling(bootstrap_options = c("hover", "striped", "condensed"), full_width = F, fixed_thead = T) %>% 
+  landscape() %>% 
+  row_spec(row = cor, bold = T) # ligne total en foncé
+rm(cor)
+```
+
+### `table9`: ~ année--OPANO
+```{r}
+op <- catch %>% filter(annee %in% my_year) %>% pull(opano) %>% unique %>% sort()
+table9 <- expand_grid(annee = c(my_year, "Total"), opano = c(op, "Total")) # cellules année-opano à remplir
+ajout1 <- catch %>% 
+          filter(annee %in% my_year) %>% 
+          group_by(annee, opano) %>% 
+          summarise(catch = sum(catch, na.rm = T) / 1000) %>% # en tonnes
+          ungroup %>% 
+          mutate(annee = as.character(annee))
+ajout2 <- ajout1 %>%
+          group_by(annee) %>% 
+          summarise(catch = sum(catch, na.rm = T)) %>% # en tonnes
+          ungroup %>% 
+          mutate(opano = "Total")
+ajout3 <- ajout1 %>%
+          group_by(opano) %>% 
+          summarise(catch = sum(catch, na.rm = T)) %>% # en tonnes
+          ungroup %>% 
+          mutate(annee = "Total")
+ajout4 <- ajout1 %>% 
+          summarise(catch = sum(catch, na.rm = T),
+                    annee = "Total", 
+                    opano = "Total") %>% 
+          ungroup
+ajout <- bind_rows(ajout1, ajout2, ajout3, ajout4)
+dim(table9) # 435 obs et 2 var
+table9 <- full_join(table9, ajout, by = c("annee", "opano"))
+dim(table9) # 435 obs et 3 var
+table9 <- table9 %>% pivot_wider(id_cols = "annee", names_from = "opano", values_from = "catch")
+dim(table9) # 29 obs et 16 var
+rm(ajout1, ajout2, ajout3, ajout4, ajout)
+op <- names(table9)[2:(ncol(table9)-1)]
+
+if (langue == "fr"){
+  cap <- "Débarquements reportés (t) de morue franche dans la pêche commerciale des Divisions OPANO 3Pn--4RS pour la période 1993--2020, ventilé par année et zone unitaire de l'OPANO. Source: données ZIFF."
+  col_names <- c("Année", op, "Total")
+} else {
+  cap <- "Reported landings (t) of Atlantic cod in the commercial fishery of the NAFO Divisions 3Pn--4RS for the period 1993--2020, by year and NAFO sub-division. Source: ZIFF data."
+  col_names <- c("Year", op, "Total")
+}
+
+cor <- which(with(table9, annee == "Total"))
+
+table9 %>% 
+  mutate_if(.predicate = is.numeric, .funs = function(x) ifelse(is.na(x), "", format(round(x, 0), nsmall = 0, big.mark = bm))) %>%  
+  kable(caption = cap, col.names = col_names, longtable = F, align = c("l", rep("r", ncol(.)-1))) %>% 
+  kable_styling(bootstrap_options = c("hover", "striped", "condensed"), full_width = F, fixed_thead = T) %>% 
+  landscape() %>% 
+  row_spec(row = cor, bold = T) # ligne total en foncé
+rm(cor)
+```
+
+### `table10`: ~ année--*engin_cat*
+```{r}
+dim(catch) # 593461 obs et 13 var
+catch <- left_join(catch, engins_deb %>% select(engin, engin_groupe), by = "engin")
+dim(catch) # 593461 obs et 14 var
+engins <- levels(catch$engin_groupe)
+table10 <- expand_grid(annee = c(my_year, "Total"), engin_groupe = c(engins, "Total")) # cellules année-engins à remplir
+ajout1 <- catch %>% 
+          filter(annee %in% my_year) %>% 
+          group_by(annee, engin_groupe) %>% 
+          summarise(catch = sum(catch, na.rm = T) / 1000) %>% # en tonnes
+          ungroup %>% 
+          mutate(annee = as.character(annee))
+ajout2 <- ajout1 %>%
+          group_by(annee) %>% 
+          summarise(catch = sum(catch, na.rm = T)) %>% # en tonnes
+          ungroup %>% 
+          mutate(engin_groupe = "Total")
+ajout3 <- ajout1 %>%
+          group_by(engin_groupe) %>% 
+          summarise(catch = sum(catch, na.rm = T)) %>% # en tonnes
+          ungroup %>% 
+          mutate(annee = "Total")
+ajout4 <- ajout1 %>% 
+          summarise(catch = sum(catch, na.rm = T),
+                    annee = "Total", 
+                    engin_groupe = "Total") %>% 
+          ungroup
+ajout <- bind_rows(ajout1, ajout2, ajout3, ajout4)
+dim(table10) # 261 obs et 2 var
+table10 <- full_join(table10, ajout, by = c("annee", "engin_groupe"))
+dim(table10) # 261 obs et 3 var
+table10 <- table10 %>% pivot_wider(id_cols = "annee", names_from = "engin_groupe", values_from = "catch")
+dim(table10) # 29 obs et 10 var
+rm(ajout1, ajout2, ajout3, ajout4, ajout)
+engin <- names(table10)[2:(ncol(table10) - 1)]
+
+if (langue == "fr"){
+  cap <- "Débarquements reportés (t) de morue franche dans la pêche commerciale des Divisions OPANO 3Pn--4RS pour la période 1993--2020, ventilé par année et regroupement d'engins. Source: données ZIFF."
+  col_names <- c("Année", engin, "Total")
+} else {
+  cap <- "Reported landings (t) of Atlantic cod in the commercial fishery of the NAFO Divisions 3Pn--4RS for the period 1993--2020, by year and gear grouping. Source: ZIFF data."
+  col_names <- c("Year", engin, "Total")
+}
+
+cor <- which(with(table10, annee == "Total"))
+
+table10 %>% 
+  mutate_if(.predicate = is.numeric, .funs = function(x) ifelse(is.na(x), "", format(round(x, 0), nsmall = 0, big.mark = bm))) %>%  
+  kable(caption = cap, col.names = col_names, longtable = F, align = c("l", rep("r", ncol(.)-1))) %>% 
+  kable_styling(bootstrap_options = c("hover", "striped", "condensed"), full_width = F, fixed_thead = T) %>% 
+  landscape() %>% 
+  row_spec(row = cor, bold = T) # ligne total en gras
+
+rm(cor, engins)
+```
+
+# Figures
+## `graph2`: FL - regroupements d'engins
+Pour chaque regroupement d'engins, je veux montrer les FL.
+```{r}
+if (langue == "fr"){
+  combi <- "Combiné"
+  lab1 <- "Longueur (cm)"
+  lab2 <- "Proportion"
+  text1 <- " É = "
+  text2 <- " P)"
+} else if (langue == "en"){
+  combi <- "Combined"
+  lab1 <- "Length (cm)"
+  lab2 <- "Proportion"
+  text1 <- " S = "
+  text2 <- " F)"
+} else {
+  # à définir
+}
+
+g <- left_join(lf, engins_obs %>% select(engin, engin_groupe), by = "engin") %>% 
+     filter(annee %in% my_year, outlier == F) %>% 
+     pull(engin_groupe) %>% as.character(.) %>% unique    
+
+n_id <- lf %>% 
+        filter(annee %in% my_year, outlier == F) %>% 
+        group_by(engin) %>% 
+        summarise(nb_id = n_distinct(ech_id)) %>% 
+        ungroup
+       
+dat <- lf %>% 
+       filter(annee %in% my_year, outlier == F) %>% 
+       group_by(engin, longueur) %>% 
+       summarise(n = sum(n_mes, na.rm = T)) %>% 
+       ungroup %>% 
+       left_join(., engins_obs %>% select(engin, engin_groupe), by = "engin") %>% 
+       left_join(., n_id, by = "engin") %>% 
+       group_by(engin) %>% 
+       mutate(engin = paste0(engin, " (", unique(nb_id), text1, format(sum(n), big.mark = bm), text2)) %>% 
+       ungroup
+
+dim(dat) # 875 obs et 5 var
+
+g <- intersect(levels(engins_deb$engin_groupe), g); g # je veux une figure pour chacun de ces regroupements
+
+range(dat$longueur)
+brks_x <- seq(from = 0, to = 150, by = 5)
+labs_x <- brks_x
+labs_x[labs_x %% 10 > 0] <- ""
+
+for (i in 1:length(g)){
+  dat_graph <- dat %>% 
+               filter(engin_groupe == g[i]) %>% 
+               group_by(engin) %>% 
+               mutate(prop = n / sum(n)) %>% 
+               ungroup
+               
+  graph <- ggplot(data = dat_graph, aes(x = longueur, y = prop, color = engin)) +
+           geom_line(size = 0.75) +
+           facet_wrap(~ engin_groupe) + # juste pour avoir un titre à chaque panneau
+           scale_color_manual(values = c("red", "blue", "black", "grey50", "orange", "green")) +
+           theme(legend.position = c(1,1),
+                 legend.justification = c(1,1),
+                 plot.margin = unit(x = c(0,0.5,0.25,0), units = "cm")) +
+           labs(x = lab1, y = lab2, color = NULL) +
+           scale_x_continuous(limits = c(min(brks_x), max(brks_x)), expand = c(0,0), breaks = brks_x, labels = labs_x)
+  
+  assign(x = paste0("graph_", letters[i]), value = graph)
+  rm(dat_graph, graph)
+}
+
+# Combinaison des figures
+combi <- plot_grid(graph_a + labs(x = NULL, y = NULL), 
+                   graph_b + labs(x = NULL, y = NULL), 
+                   graph_c + labs(x = NULL, y = NULL), 
+                   graph_d + labs(x = NULL, y = NULL), 
+                   graph_e + labs(x = NULL, y = NULL), 
+                   graph_f + labs(x = NULL, y = NULL), 
+                   graph_g + labs(x = NULL, y = NULL), 
+                   ncol =  2, byrow = T, labels = "AUTO")
+x_title <- ggdraw() + draw_label(label = lab1, size = 11)
+y_title <- ggdraw() + draw_label(label = lab2, size = 11, angle = 90)
+
+# https://stackoverflow.com/questions/37052059/how-to-add-a-title-for-a-grid-layout-figure-in-ggplot2
+graph2 <- plot_grid(y_title, combi, ncol = 2, rel_widths = c(0.05, 1)) # rel_heights values control title margins
+graph2 <- plot_grid(graph2, x_title, nrow = 2, rel_heights = c(1, 0.05))
+graph2
+
+rm(graph_a, graph_b, graph_c, graph_d, graph_e, graph_f, graph_g, x_title, y_title)
+```
+
+## `graph3`: espèces visées
+L'espèce visée n'est pas une information fournie dans `lf` ni dans `bio`. Je vais tenter de l'extraire depuis `ziff`.
+```{r}
+cle <- c("nbpc", "date_deb")
+
+ziff %>% distinct_at(cle) %>% nrow # 341413
+tmp <- ziff %>% 
+       group_by_at(cle) %>% 
+       summarise(esp_vis = unique(prespvis)) %>% 
+       ungroup
+dim(tmp) # 343222 = plus de lignes = des débarquements avaient > 1 espèce visée?
+
+tmp %>% 
+  group_by_at(cle) %>% 
+  summarise(n = n(), esp_vis = paste(as.character(unique(esp_vis)), collapse = ",")) %>% 
+  ungroup %>% 
+  filter(n > 1)
+# Effectivement...
+
+rm(cle, tmp)
+```
+Je ne suis pas capable d'apparier les données `ziff` à celles `lf` pour savoir qu'elle était l'espèce visée pour chaque capture d'où des échantillons ont été prélevés.
+
+Je vais par contre regarder les données `ziff` pour résumer la période 1993--2020.
+```{r}
+dat_graph <- ziff %>% filter(annee %in% my_year)
+cor <- which(with(dat_graph, is.na(prespvis))); length(cor) # 43059 lignes
+
+dat_graph[cor, ] %>% 
+  group_by(prov) %>% 
+  summarise(nblignes = n(), catch = sum(pds_vift, na.rm = T))
+# La problématique ne semble pas juste être TN
+
+tmp <- dat_graph %>% 
+       group_by(annee) %>% 
+       summarise(deb_avec = sum(pds_vift[!is.na(prespvis)], na.rm = T),
+                 deb_sans = sum(pds_vift[is.na(prespvis)], na.rm = T),
+                 deb_tot = deb_avec + deb_sans,
+                 perc = deb_sans / deb_tot * 100) %>% 
+       ungroup
+tmp
+
+tmp %>% filter(annee != 1997) %>% pull(deb_sans) %>% mean # en excluant 1997, 186 t par année en moyenne débarquées sans esp_vis
+
+# 1997 n'est pas une année de moratoire. Pourquoi les espèces visées prennent autant d'importance?
+dat_graph %>% 
+  filter(annee == 1997, is.na(prespvis)) %>% 
+  group_by(prov) %>% 
+  summarise(catch = sum(pds_vift, na.rm = T))
+# en 1997, la vaste majorité du problème des espèces visées est dû à TN
+dat_graph %>% 
+  filter(annee == 1997, is.na(prespvis), prov == "T-N") %>% 
+  group_by(prespcap) %>% 
+  summarise(catch = sum(pds_vift, na.rm = T))
+# Même l'espèce principale capturée n'est pas fournie
+dat_graph %>% 
+  filter(annee == 1997, is.na(prespvis), prov == "T-N") %>% 
+  group_by(engin_fr) %>% 
+  summarise(catch = sum(pds_vift, na.rm = T))
+# À partir de l'engin, on pourrait peut-être statué que ça visait principalement la morue?
+
+# Espèces à ne pas prioriser (en dehors du top 6)
+dat_graph[is.na(dat_graph$prespvis), "prespvis"] <- 999 # pour ne pas avoir des 999 et des NA
+
+sp <- dat_graph %>% 
+      filter(annee %in% my_year) %>% 
+      group_by(prespvis) %>%
+      summarise(catch = sum(pds_vift, na.rm = T)) %>% 
+      ungroup %>% 
+      arrange(desc(catch)) %>% 
+      pull(prespvis) %>% 
+      .[7:length(.)]
+sp
+
+cor <- which(with(dat_graph, prespvis %in% sp)); length(cor) # 9085 lignes
+dat_graph$prespvis[cor] <- 9999 # code bidon
+
+dat_graph <- dat_graph %>% 
+             group_by(annee, prespvis) %>%
+             summarise(catch = sum(pds_vift, na.rm = T)) %>% 
+             group_by(annee) %>% 
+             mutate(perc = (catch / sum(catch)) * 100,
+                    perc_lab = ifelse(perc < 3, "", format(round(perc, 1), nsmall = 1, decimal.mark = dm))) %>% 
+             ungroup
+dat_graph$prespvis <- factor(dat_graph$prespvis, levels = sort(unique(dat_graph$prespvis), decreasing = T), ordered = T)
+
+ajout <- tibble(prespvis = levels(dat_graph$prespvis),
+                sp_vis_fr = c("Autres", "Inconnu", "Flétan du Groenland", "Plie grise", "Flétan atlantique", "Sébastes", 
+                            "Morue franche"),
+                sp_vis_en = c("Others", "Unknown", "Greenland halibut", "Witch flounder", "Atlantic halibut", "Redfish", 
+                            "Atlantic cod")) %>% 
+         mutate(sp_vis_fr = factor(sp_vis_fr, levels = sp_vis_fr),
+                sp_vis_en = factor(sp_vis_en, levels = sp_vis_en))
+
+dim(dat_graph) # 193 obs et 5 var
+dat_graph <- left_join(dat_graph, ajout, by = "prespvis")
+dim(dat_graph) # 193 obs et 7 var
+
+brks_x <- my_year
+labs_x <- brks_x
+labs_x[labs_x %% 5 > 0] <- ""
+
+brks_y <- seq(from = 0, to = 100, by = 10)
+labs_y <- brks_y
+labs_y[labs_y %% 20 > 0] <- ""
+
+if (langue == "fr"){
+  lab1 <- "Année"
+  lab2 <- "% des débarquements annuels"
+  lab3 <- "Espèce visée"
+  dat_graph$esp_vis <- dat_graph$sp_vis_fr
+} else {
+  lab1 <- "Year"
+  lab2 <- "% of annual landings"
+  lab3 <- "Targeted species"
+  dat_graph$esp_vis <- dat_graph$sp_vis_en
+}
+
+graph3 <- ggplot(data = dat_graph, aes(x = annee, y = perc, fill = esp_vis)) +
+          geom_bar(stat = "identity", width = 1, color = "white") +
+          scale_x_continuous(expand = c(0,0), breaks = brks_x, labels = labs_x) +
+          scale_y_continuous(expand = c(0,0), breaks = brks_y, labels = labs_y) +
+          scale_fill_brewer(palette = "Paired", direction = -1) +
+          geom_text(aes(label = perc_lab), position = position_stack(0.5), size = 3) +
+          labs(x = lab1, y = lab2, fill = lab3) +
+          theme(legend.position = "top",
+                legend.direction = "horizontal") +
+          guides(fill = guide_legend(nrow = 2, reverse = T))
+graph3
+```
+
+# Sauvegarde
+```{r}
+save(lf, file = dat_LF)
+save(bio, file = dat_bio)
+save(list = ls(pattern = "^graph[0-9]+"), file = paste0(result, "02_graphs_", langue,".Rda"))
+save(list = ls(pattern = "^table[0-9]+"), file = paste0(result, "02_tables_", langue,".Rda"))
+```
