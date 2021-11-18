@@ -16,6 +16,8 @@ output:
     code_folding: show
     number_sections: TRUE
   linkcolor: blue
+editor_options: 
+  chunk_output_type: console
 ---
 
 Exemple de l'utilisation du paquet `catchR` pour les calculs à l'âge de la morue franche (*Gadus morhua*) du stock 3Pn--4RS dans la pêche commerciale. Cette nouvelle approche remplace celle utilisant logiciel `CATCH` utilisée jusqu'à l'évaluation de @Brassard2020_fr.

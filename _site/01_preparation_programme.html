@@ -11,11 +11,12 @@
 
 <meta name="author" content="Jordan Ouellette-Plante" />
 
-<meta name="date" content="2021-09-30" />
+<meta name="date" content="2021-11-18" />
 
 <title>Préparation initiale du programme</title>
 
-<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<script src="site_libs/header-attrs-2.11/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="site_libs/bootstrap-3.3.5/css/united.min.css" rel="stylesheet" />
 <script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
@@ -55,26 +56,28 @@
   }
 </style>
 <style type="text/css" data-origin="pandoc">
-a.sourceLine { display: inline-block; line-height: 1.25; }
-a.sourceLine { pointer-events: none; color: inherit; text-decoration: inherit; }
-a.sourceLine:empty { height: 1.2em; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
 .sourceCode { overflow: visible; }
-code.sourceCode { white-space: pre; position: relative; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
 @media screen {
 div.sourceCode { overflow: auto; }
 }
 @media print {
-code.sourceCode { white-space: pre-wrap; }
-a.sourceLine { text-indent: -1em; padding-left: 1em; }
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
 }
-pre.numberSource a.sourceLine
-  { position: relative; left: -4em; }
-pre.numberSource a.sourceLine::before
-  { content: attr(title);
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
     position: relative; left: -1em; text-align: right; vertical-align: baseline;
-    border: none; pointer-events: all; display: inline-block;
+    border: none; display: inline-block;
     -webkit-touch-callout: none; -webkit-user-select: none;
     -khtml-user-select: none; -moz-user-select: none;
     -ms-user-select: none; user-select: none;
@@ -83,9 +86,9 @@ pre.numberSource a.sourceLine::before
   }
 pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
 div.sourceCode
-  { background-color: #f8f8f8; }
+  {  background-color: #f8f8f8; }
 @media screen {
-a.sourceLine::before { text-decoration: underline; }
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
 }
 code span.al { color: #ef2929; } /* Alert */
 code span.an { color: #8f5902; font-weight: bold; font-style: italic; } /* Annotation */
@@ -446,119 +449,119 @@ div.tocify {
 
 <h1 class="title toc-ignore">Préparation initiale du programme</h1>
 <h4 class="author">Jordan Ouellette-Plante</h4>
-<h4 class="date">2021-09-30</h4>
+<h4 class="date">2021-11-18</h4>
 
 </div>
 
 
-<div id="objectif" class="section level1">
+<div id="objectif" class="section level1" number="1">
 <h1><span class="header-section-number">1</span> Objectif</h1>
 <p>Mettre en place les informations requises pour rouler le programme.</p>
 </div>
-<div id="initialisation" class="section level1">
+<div id="initialisation" class="section level1" number="2">
 <h1><span class="header-section-number">2</span> Initialisation</h1>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb1-1" title="1"><span class="co"># Pour le fichier Rmarkdown</span></a>
-<a class="sourceLine" id="cb1-2" title="2">knitr<span class="op">::</span>opts_chunk<span class="op">$</span><span class="kw">set</span>(<span class="dt">echo =</span> T, <span class="dt">collapse =</span> T, <span class="dt">fig.align =</span> <span class="st">&quot;center&quot;</span>, <span class="dt">fig.width =</span> <span class="dv">9</span>, </a>
-<a class="sourceLine" id="cb1-3" title="3">                      <span class="dt">fig.height =</span> <span class="dv">6</span>, <span class="dt">message =</span> F, <span class="dt">warning =</span> F)</a></code></pre></div>
-<div id="packages-requis" class="section level2">
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Pour le fichier Rmarkdown</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>knitr<span class="sc">::</span>opts_chunk<span class="sc">$</span><span class="fu">set</span>(<span class="at">echo =</span> T, <span class="at">collapse =</span> T, <span class="at">fig.align =</span> <span class="st">&quot;center&quot;</span>, <span class="at">fig.width =</span> <span class="dv">9</span>, </span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>                      <span class="at">fig.height =</span> <span class="dv">6</span>, <span class="at">message =</span> F, <span class="at">warning =</span> F)</span></code></pre></div>
+<div id="packages-requis" class="section level2" number="2.1">
 <h2><span class="header-section-number">2.1</span> Packages requis</h2>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb2-1" title="1"><span class="co"># Packages requis disponibles sur CRAN</span></a>
-<a class="sourceLine" id="cb2-2" title="2">packages &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;tidyverse&quot;</span>, <span class="st">&quot;gridExtra&quot;</span>, <span class="st">&quot;viridis&quot;</span>, <span class="st">&quot;kableExtra&quot;</span>)</a>
-<a class="sourceLine" id="cb2-3" title="3">packages &lt;-<span class="st"> </span>packages[<span class="op">!</span>(packages <span class="op">%in%</span><span class="st"> </span>utils<span class="op">::</span><span class="kw">installed.packages</span>()[, <span class="st">&quot;Package&quot;</span>])]</a>
-<a class="sourceLine" id="cb2-4" title="4"><span class="cf">if</span>(<span class="kw">length</span>(packages) <span class="op">&gt;</span><span class="st"> </span><span class="dv">0</span>) <span class="kw">install.packages</span>(packages)</a>
-<a class="sourceLine" id="cb2-5" title="5"></a>
-<a class="sourceLine" id="cb2-6" title="6"><span class="co"># Packages requis et téléchargeables depuis GitHub</span></a>
-<a class="sourceLine" id="cb2-7" title="7">packages &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;catchR&quot;</span>)</a>
-<a class="sourceLine" id="cb2-8" title="8">packages &lt;-<span class="st"> </span>packages[<span class="op">!</span>(packages <span class="op">%in%</span><span class="st"> </span>utils<span class="op">::</span><span class="kw">installed.packages</span>()[, <span class="st">&quot;Package&quot;</span>])]</a>
-<a class="sourceLine" id="cb2-9" title="9"></a>
-<a class="sourceLine" id="cb2-10" title="10"><span class="cf">if</span>(<span class="st">&quot;catchR&quot;</span> <span class="op">%in%</span><span class="st"> </span>packages)  devtools<span class="op">::</span><span class="kw">install_github</span>(<span class="st">&quot;iml-assess/catchR&quot;</span>)</a>
-<a class="sourceLine" id="cb2-11" title="11"><span class="kw">rm</span>(packages)</a>
-<a class="sourceLine" id="cb2-12" title="12"></a>
-<a class="sourceLine" id="cb2-13" title="13"><span class="kw">library</span>(gridExtra)</a>
-<a class="sourceLine" id="cb2-14" title="14"><span class="kw">library</span>(viridis)</a>
-<a class="sourceLine" id="cb2-15" title="15"><span class="kw">library</span>(catchR)</a>
-<a class="sourceLine" id="cb2-16" title="16"><span class="kw">library</span>(tidyverse)</a>
-<a class="sourceLine" id="cb2-17" title="17"><span class="kw">options</span>(<span class="dt">dplyr.summarise.inform =</span> <span class="ot">FALSE</span>)</a>
-<a class="sourceLine" id="cb2-18" title="18"><span class="kw">library</span>(kableExtra)</a></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Packages requis disponibles sur CRAN</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>packages <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;tidyverse&quot;</span>, <span class="st">&quot;gridExtra&quot;</span>, <span class="st">&quot;viridis&quot;</span>, <span class="st">&quot;kableExtra&quot;</span>)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>packages <span class="ot">&lt;-</span> packages[<span class="sc">!</span>(packages <span class="sc">%in%</span> utils<span class="sc">::</span><span class="fu">installed.packages</span>()[, <span class="st">&quot;Package&quot;</span>])]</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span>(<span class="fu">length</span>(packages) <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="fu">install.packages</span>(packages)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Packages requis et téléchargeables depuis GitHub</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>packages <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;catchR&quot;</span>)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>packages <span class="ot">&lt;-</span> packages[<span class="sc">!</span>(packages <span class="sc">%in%</span> utils<span class="sc">::</span><span class="fu">installed.packages</span>()[, <span class="st">&quot;Package&quot;</span>])]</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span>(<span class="st">&quot;catchR&quot;</span> <span class="sc">%in%</span> packages)  devtools<span class="sc">::</span><span class="fu">install_github</span>(<span class="st">&quot;iml-assess/catchR&quot;</span>)</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="fu">rm</span>(packages)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(gridExtra)</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(viridis)</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(catchR)</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="fu">options</span>(<span class="at">dplyr.summarise.inform =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(kableExtra)</span></code></pre></div>
 </div>
-<div id="répertoires-et-infos-utiles" class="section level2">
+<div id="répertoires-et-infos-utiles" class="section level2" number="2.2">
 <h2><span class="header-section-number">2.2</span> Répertoires et infos utiles</h2>
 <p><code>~/Data/</code> est un répertoire personnel où je conserve les données les plus à jour des différentes bases sur le réseau. Les fichiers chargés pour la morue sont déjà travaillés pour ne conserver que les données associées à la morue franche.</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb3-1" title="1"><span class="co"># Répertoires</span></a>
-<a class="sourceLine" id="cb3-2" title="2">dir_ziff &lt;-<span class="st"> &quot;~/Data/ZIFF/&quot;</span> <span class="co"># données ZIFF</span></a>
-<a class="sourceLine" id="cb3-3" title="3">dir_nafoa &lt;-<span class="st"> &quot;~/Data/NAFOA/&quot;</span> <span class="co"># données NAFO 21A</span></a>
-<a class="sourceLine" id="cb3-4" title="4">dir_nafob &lt;-<span class="st"> &quot;~/Data/NAFOB/&quot;</span> <span class="co"># données NAFO 21B</span></a>
-<a class="sourceLine" id="cb3-5" title="5">dir_bio  &lt;-<span class="st"> &quot;./Data/echantillonneurs_quai/&quot;</span> <span class="co"># données de caractéristiques biologiques et de FL </span></a>
-<a class="sourceLine" id="cb3-6" title="6">dir_ngsl &lt;-<span class="st"> &quot;~/Data/NGSL/&quot;</span> <span class="co"># données des relevés multispécifiques du mois d&#39;août dans le nGSL</span></a>
-<a class="sourceLine" id="cb3-7" title="7"></a>
-<a class="sourceLine" id="cb3-8" title="8"><span class="co"># Fichiers intrants</span></a>
-<a class="sourceLine" id="cb3-9" title="9">intrant_nafoa &lt;-<span class="st"> </span><span class="kw">paste0</span>(dir_nafoa, <span class="st">&quot;statland21A_morue.Rda&quot;</span>)</a>
-<a class="sourceLine" id="cb3-10" title="10">intrant_nafob &lt;-<span class="st"> </span><span class="kw">paste0</span>(dir_nafob, <span class="st">&quot;NAFO21B_morue.Rda&quot;</span>)</a>
-<a class="sourceLine" id="cb3-11" title="11">intrant_ziff &lt;-<span class="st"> </span><span class="kw">paste0</span>(dir_ziff, <span class="st">&quot;ziff_morue.Rda&quot;</span>)</a>
-<a class="sourceLine" id="cb3-12" title="12">intrant_lf &lt;-<span class="st"> </span><span class="kw">paste0</span>(dir_bio, <span class="st">&quot;morue_freq_V20210329.dat&quot;</span>)</a>
-<a class="sourceLine" id="cb3-13" title="13">intrant_bio &lt;-<span class="st"> </span><span class="kw">paste0</span>(dir_bio, <span class="st">&quot;morue_carbio_V20210329.dat&quot;</span>)</a>
-<a class="sourceLine" id="cb3-14" title="14">intrant_ngsl &lt;-<span class="st"> </span><span class="kw">paste0</span>(dir_ngsl, <span class="st">&quot;NGSL_morue.Rda&quot;</span>) <span class="co"># série Needler-Teleost</span></a>
-<a class="sourceLine" id="cb3-15" title="15">intrant_LH &lt;-<span class="st"> </span><span class="kw">paste0</span>(dir_ngsl, <span class="st">&quot;LH_morue.Rda&quot;</span>) <span class="co"># série Lady Hammond</span></a>
-<a class="sourceLine" id="cb3-16" title="16">intrant_Gadus &lt;-<span class="st"> </span><span class="kw">paste0</span>(dir_ngsl, <span class="st">&quot;Gadus_morue.Rda&quot;</span>) <span class="co"># série Gadus Atlantica</span></a>
-<a class="sourceLine" id="cb3-17" title="17"></a>
-<a class="sourceLine" id="cb3-18" title="18"><span class="co"># Fichiers extrants (produits dans les différents scripts)</span></a>
-<a class="sourceLine" id="cb3-19" title="19">result &lt;-<span class="st"> &quot;./Resultats/&quot;</span></a>
-<a class="sourceLine" id="cb3-20" title="20">dat_ziff &lt;-<span class="st"> </span><span class="kw">paste0</span>(result, <span class="st">&quot;02_ziff.Rda&quot;</span>) <span class="co"># 02_ = créé au script 02</span></a>
-<a class="sourceLine" id="cb3-21" title="21">dat_nafoa &lt;-<span class="st"> </span><span class="kw">paste0</span>(result, <span class="st">&quot;02_nafoA.Rda&quot;</span>)</a>
-<a class="sourceLine" id="cb3-22" title="22">dat_nafob &lt;-<span class="st"> </span><span class="kw">paste0</span>(result, <span class="st">&quot;02_nafoB.Rda&quot;</span>)</a>
-<a class="sourceLine" id="cb3-23" title="23">dat_catch &lt;-<span class="st"> </span><span class="kw">paste0</span>(result, <span class="st">&quot;02_catch.Rda&quot;</span>)</a>
-<a class="sourceLine" id="cb3-24" title="24">dat_LF &lt;-<span class="st"> </span><span class="kw">paste0</span>(result, <span class="st">&quot;02_lf.Rda&quot;</span>)</a>
-<a class="sourceLine" id="cb3-25" title="25">dat_bio &lt;-<span class="st"> </span><span class="kw">paste0</span>(result, <span class="st">&quot;02_bio.Rda&quot;</span>)</a>
-<a class="sourceLine" id="cb3-26" title="26">dat_engin_deb &lt;-<span class="st"> </span><span class="kw">paste0</span>(result, <span class="st">&quot;02_engins_deb.Rda&quot;</span>)</a>
-<a class="sourceLine" id="cb3-27" title="27">dat_engin_obs &lt;-<span class="st"> </span><span class="kw">paste0</span>(result, <span class="st">&quot;02_engins_obs.Rda&quot;</span>)</a>
-<a class="sourceLine" id="cb3-28" title="28">dat_lw &lt;-<span class="st"> </span><span class="kw">paste0</span>(result, <span class="st">&quot;03_lw.Rda&quot;</span>)</a>
-<a class="sourceLine" id="cb3-29" title="29">dat_caa_raw &lt;-<span class="st"> </span><span class="kw">paste0</span>(result, <span class="st">&quot;03_caa_data_brutes.Rda&quot;</span>)</a>
-<a class="sourceLine" id="cb3-30" title="30">dat_caa_processed &lt;-<span class="st"> </span><span class="kw">paste0</span>(result, <span class="st">&quot;03_caa_data_nettes.Rda&quot;</span>)</a>
-<a class="sourceLine" id="cb3-31" title="31">dat_obs_<span class="dv">1990</span>_<span class="dv">1998</span> &lt;-<span class="st"> &quot;./Data/observateur_mer/cod LF in shrimp_obs.Rdata&quot;</span> <span class="co"># données des observateurs en mer 1990-1998</span></a>
-<a class="sourceLine" id="cb3-32" title="32"><span class="co"># dat_obs_1990_1998 a été fourni par Hugues Benoît dans un courriel du 9 sept. 2021</span></a>
-<a class="sourceLine" id="cb3-33" title="33">dat_obs_<span class="dv">1999</span> &lt;-<span class="st"> &quot;~/Data/OBS/OBS_toutes_especes.Rda&quot;</span> <span class="co"># copie locale des données d&#39;observateurs en mer 1999-maintenant</span></a>
-<a class="sourceLine" id="cb3-34" title="34"></a>
-<a class="sourceLine" id="cb3-35" title="35"><span class="co"># Autres informations</span></a>
-<a class="sourceLine" id="cb3-36" title="36">my_sp &lt;-<span class="st"> &quot;cod&quot;</span> <span class="co"># &quot;cod&quot; ou &quot;mackerel&quot;</span></a>
-<a class="sourceLine" id="cb3-37" title="37">my_sp_ziff &lt;-<span class="st"> </span><span class="dv">100</span> <span class="co"># code ZIFF pour la morue</span></a>
-<a class="sourceLine" id="cb3-38" title="38">my_sp_nafo &lt;-<span class="st"> </span><span class="dv">101</span> <span class="co"># code OPANO pour la morue</span></a>
-<a class="sourceLine" id="cb3-39" title="39">my_nafo &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="dv">36</span>, <span class="dv">41</span>, <span class="dv">42</span>) <span class="co"># 36 = 3Pn, 41 = 4R, 42 = 4S</span></a>
-<a class="sourceLine" id="cb3-40" title="40">opanos &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;3Pn&quot;</span>, <span class="st">&quot;4R&quot;</span>, <span class="st">&quot;4S&quot;</span>) <span class="co"># Divisions OPANO associées à la morue du NGSL</span></a>
-<a class="sourceLine" id="cb3-41" title="41">my_year &lt;-<span class="st"> </span><span class="dv">1993</span><span class="op">:</span><span class="dv">2020</span> <span class="co"># Années pour lesquelles on veut faire l&#39;analyse</span></a>
-<a class="sourceLine" id="cb3-42" title="42"></a>
-<a class="sourceLine" id="cb3-43" title="43">langue &lt;-<span class="st"> &quot;en&quot;</span> <span class="co"># peut être &quot;fr&quot;, &quot;en&quot; ou &quot;en_fr&quot;</span></a>
-<a class="sourceLine" id="cb3-44" title="44"></a>
-<a class="sourceLine" id="cb3-45" title="45"><span class="cf">if</span> (langue <span class="op">==</span><span class="st"> &quot;fr&quot;</span>){</a>
-<a class="sourceLine" id="cb3-46" title="46">  figure &lt;-<span class="st"> &quot;./Figures/FR/&quot;</span></a>
-<a class="sourceLine" id="cb3-47" title="47">  dm &lt;-<span class="st"> &quot;,&quot;</span></a>
-<a class="sourceLine" id="cb3-48" title="48">  bm &lt;-<span class="st"> &quot; &quot;</span></a>
-<a class="sourceLine" id="cb3-49" title="49">} <span class="cf">else</span> <span class="cf">if</span> (langue <span class="op">==</span><span class="st"> &quot;en&quot;</span>){</a>
-<a class="sourceLine" id="cb3-50" title="50">  figure &lt;-<span class="st"> &quot;./Figures/EN/&quot;</span></a>
-<a class="sourceLine" id="cb3-51" title="51">  dm &lt;-<span class="st"> &quot;.&quot;</span></a>
-<a class="sourceLine" id="cb3-52" title="52">  bm &lt;-<span class="st"> &quot;,&quot;</span></a>
-<a class="sourceLine" id="cb3-53" title="53">} <span class="cf">else</span> {  </a>
-<a class="sourceLine" id="cb3-54" title="54">  figure &lt;-<span class="st"> &quot;./Figures/BI/&quot;</span></a>
-<a class="sourceLine" id="cb3-55" title="55">  dm &lt;-<span class="st"> &quot;.&quot;</span></a>
-<a class="sourceLine" id="cb3-56" title="56">  bm &lt;-<span class="st"> &quot;,&quot;</span></a>
-<a class="sourceLine" id="cb3-57" title="57">}</a></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Répertoires</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>dir_ziff <span class="ot">&lt;-</span> <span class="st">&quot;~/Data/ZIFF/&quot;</span> <span class="co"># données ZIFF</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>dir_nafoa <span class="ot">&lt;-</span> <span class="st">&quot;~/Data/NAFOA/&quot;</span> <span class="co"># données NAFO 21A</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>dir_nafob <span class="ot">&lt;-</span> <span class="st">&quot;~/Data/NAFOB/&quot;</span> <span class="co"># données NAFO 21B</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>dir_bio  <span class="ot">&lt;-</span> <span class="st">&quot;./Data/echantillonneurs_quai/&quot;</span> <span class="co"># données de caractéristiques biologiques et de FL </span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>dir_ngsl <span class="ot">&lt;-</span> <span class="st">&quot;~/Data/NGSL/&quot;</span> <span class="co"># données des relevés multispécifiques du mois d&#39;août dans le nGSL</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Fichiers intrants</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>intrant_nafoa <span class="ot">&lt;-</span> <span class="fu">paste0</span>(dir_nafoa, <span class="st">&quot;statland21A_morue.Rda&quot;</span>)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>intrant_nafob <span class="ot">&lt;-</span> <span class="fu">paste0</span>(dir_nafob, <span class="st">&quot;NAFO21B_morue.Rda&quot;</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>intrant_ziff <span class="ot">&lt;-</span> <span class="fu">paste0</span>(dir_ziff, <span class="st">&quot;ziff_morue.Rda&quot;</span>)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>intrant_lf <span class="ot">&lt;-</span> <span class="fu">paste0</span>(dir_bio, <span class="st">&quot;morue_freq_V20210329.dat&quot;</span>)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>intrant_bio <span class="ot">&lt;-</span> <span class="fu">paste0</span>(dir_bio, <span class="st">&quot;morue_carbio_V20210329.dat&quot;</span>)</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>intrant_ngsl <span class="ot">&lt;-</span> <span class="fu">paste0</span>(dir_ngsl, <span class="st">&quot;NGSL_morue.Rda&quot;</span>) <span class="co"># série Needler-Teleost</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>intrant_LH <span class="ot">&lt;-</span> <span class="fu">paste0</span>(dir_ngsl, <span class="st">&quot;LH_morue.Rda&quot;</span>) <span class="co"># série Lady Hammond</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>intrant_Gadus <span class="ot">&lt;-</span> <span class="fu">paste0</span>(dir_ngsl, <span class="st">&quot;Gadus_morue.Rda&quot;</span>) <span class="co"># série Gadus Atlantica</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Fichiers extrants (produits dans les différents scripts)</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>result <span class="ot">&lt;-</span> <span class="st">&quot;./Resultats/&quot;</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>dat_ziff <span class="ot">&lt;-</span> <span class="fu">paste0</span>(result, <span class="st">&quot;02_ziff.Rda&quot;</span>) <span class="co"># 02_ = créé au script 02</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>dat_nafoa <span class="ot">&lt;-</span> <span class="fu">paste0</span>(result, <span class="st">&quot;02_nafoA.Rda&quot;</span>)</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>dat_nafob <span class="ot">&lt;-</span> <span class="fu">paste0</span>(result, <span class="st">&quot;02_nafoB.Rda&quot;</span>)</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>dat_catch <span class="ot">&lt;-</span> <span class="fu">paste0</span>(result, <span class="st">&quot;02_catch.Rda&quot;</span>)</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>dat_LF <span class="ot">&lt;-</span> <span class="fu">paste0</span>(result, <span class="st">&quot;02_lf.Rda&quot;</span>)</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>dat_bio <span class="ot">&lt;-</span> <span class="fu">paste0</span>(result, <span class="st">&quot;02_bio.Rda&quot;</span>)</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>dat_engin_deb <span class="ot">&lt;-</span> <span class="fu">paste0</span>(result, <span class="st">&quot;02_engins_deb.Rda&quot;</span>)</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>dat_engin_obs <span class="ot">&lt;-</span> <span class="fu">paste0</span>(result, <span class="st">&quot;02_engins_obs.Rda&quot;</span>)</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>dat_lw <span class="ot">&lt;-</span> <span class="fu">paste0</span>(result, <span class="st">&quot;03_lw.Rda&quot;</span>)</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>dat_caa_raw <span class="ot">&lt;-</span> <span class="fu">paste0</span>(result, <span class="st">&quot;03_caa_data_brutes.Rda&quot;</span>)</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>dat_caa_processed <span class="ot">&lt;-</span> <span class="fu">paste0</span>(result, <span class="st">&quot;03_caa_data_nettes.Rda&quot;</span>)</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>dat_obs_1990_1998 <span class="ot">&lt;-</span> <span class="st">&quot;./Data/observateur_mer/cod LF in shrimp_obs.Rdata&quot;</span> <span class="co"># données des observateurs en mer 1990-1998</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a><span class="co"># dat_obs_1990_1998 a été fourni par Hugues Benoît dans un courriel du 9 sept. 2021</span></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>dat_obs_1999 <span class="ot">&lt;-</span> <span class="st">&quot;~/Data/OBS/OBS_toutes_especes.Rda&quot;</span> <span class="co"># copie locale des données d&#39;observateurs en mer 1999-maintenant</span></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a><span class="co"># Autres informations</span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>my_sp <span class="ot">&lt;-</span> <span class="st">&quot;cod&quot;</span> <span class="co"># &quot;cod&quot; ou &quot;mackerel&quot;</span></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>my_sp_ziff <span class="ot">&lt;-</span> <span class="dv">100</span> <span class="co"># code ZIFF pour la morue</span></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>my_sp_nafo <span class="ot">&lt;-</span> <span class="dv">101</span> <span class="co"># code OPANO pour la morue</span></span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>my_nafo <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">36</span>, <span class="dv">41</span>, <span class="dv">42</span>) <span class="co"># 36 = 3Pn, 41 = 4R, 42 = 4S</span></span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>opanos <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;3Pn&quot;</span>, <span class="st">&quot;4R&quot;</span>, <span class="st">&quot;4S&quot;</span>) <span class="co"># Divisions OPANO associées à la morue du NGSL</span></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>my_year <span class="ot">&lt;-</span> <span class="dv">1993</span><span class="sc">:</span><span class="dv">2020</span> <span class="co"># Années pour lesquelles on veut faire l&#39;analyse</span></span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>langue <span class="ot">&lt;-</span> <span class="st">&quot;en&quot;</span> <span class="co"># peut être &quot;fr&quot;, &quot;en&quot; ou &quot;en_fr&quot;</span></span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (langue <span class="sc">==</span> <span class="st">&quot;fr&quot;</span>){</span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>  figure <span class="ot">&lt;-</span> <span class="st">&quot;./Figures/FR/&quot;</span></span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>  dm <span class="ot">&lt;-</span> <span class="st">&quot;,&quot;</span></span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>  bm <span class="ot">&lt;-</span> <span class="st">&quot; &quot;</span></span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> <span class="cf">if</span> (langue <span class="sc">==</span> <span class="st">&quot;en&quot;</span>){</span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>  figure <span class="ot">&lt;-</span> <span class="st">&quot;./Figures/EN/&quot;</span></span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>  dm <span class="ot">&lt;-</span> <span class="st">&quot;.&quot;</span></span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>  bm <span class="ot">&lt;-</span> <span class="st">&quot;,&quot;</span></span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {  </span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>  figure <span class="ot">&lt;-</span> <span class="st">&quot;./Figures/BI/&quot;</span></span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a>  dm <span class="ot">&lt;-</span> <span class="st">&quot;.&quot;</span></span>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a>  bm <span class="ot">&lt;-</span> <span class="st">&quot;,&quot;</span></span>
+<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
 </div>
 </div>
-<div id="thème-pour-les-figures" class="section level1">
+<div id="thème-pour-les-figures" class="section level1" number="3">
 <h1><span class="header-section-number">3</span> Thème pour les figures</h1>
-<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb4-1" title="1">my_theme &lt;-<span class="st"> </span><span class="kw">theme_bw</span>(<span class="dt">base_size =</span> <span class="dv">12</span>, <span class="dt">base_line_size =</span> <span class="fl">0.25</span>, <span class="dt">base_rect_size =</span> <span class="fl">0.25</span>) <span class="op">+</span></a>
-<a class="sourceLine" id="cb4-2" title="2"><span class="st">            </span><span class="kw">theme</span>(<span class="dt">axis.title.y =</span> <span class="kw">element_text</span>(<span class="dt">angle =</span> <span class="dv">90</span>),</a>
-<a class="sourceLine" id="cb4-3" title="3">                  <span class="dt">axis.text.x =</span> <span class="kw">element_text</span>(<span class="dt">size =</span> <span class="dv">10</span>, <span class="dt">colour =</span> <span class="st">&quot;black&quot;</span>),</a>
-<a class="sourceLine" id="cb4-4" title="4">                  <span class="dt">axis.text.y =</span> <span class="kw">element_text</span>(<span class="dt">size =</span> <span class="dv">10</span>, <span class="dt">colour =</span> <span class="st">&quot;black&quot;</span>),</a>
-<a class="sourceLine" id="cb4-5" title="5">                  <span class="dt">legend.key =</span> <span class="kw">element_blank</span>(),</a>
-<a class="sourceLine" id="cb4-6" title="6">                  <span class="dt">legend.title =</span> <span class="kw">element_text</span>(<span class="dt">colour =</span> <span class="st">&quot;black&quot;</span>), </a>
-<a class="sourceLine" id="cb4-7" title="7">                  <span class="dt">legend.text =</span> <span class="kw">element_text</span>(<span class="dt">size =</span> <span class="dv">10</span>),</a>
-<a class="sourceLine" id="cb4-8" title="8">                  <span class="dt">legend.background =</span> <span class="kw">element_blank</span>(),</a>
-<a class="sourceLine" id="cb4-9" title="9">                  <span class="dt">panel.grid.major =</span> <span class="kw">element_blank</span>(),</a>
-<a class="sourceLine" id="cb4-10" title="10">                  <span class="dt">panel.grid.minor =</span> <span class="kw">element_blank</span>(),</a>
-<a class="sourceLine" id="cb4-11" title="11">                  <span class="dt">axis.line =</span> <span class="kw">element_line</span>(<span class="dt">color =</span> <span class="st">&quot;black&quot;</span>),</a>
-<a class="sourceLine" id="cb4-12" title="12">                  <span class="dt">panel.border =</span> <span class="kw">element_rect</span>(<span class="dt">colour =</span> <span class="st">&quot;black&quot;</span>, <span class="dt">fill =</span> <span class="ot">NA</span>))</a>
-<a class="sourceLine" id="cb4-13" title="13"></a>
-<a class="sourceLine" id="cb4-14" title="14"><span class="kw">theme_set</span>(my_theme) <span class="co"># toutes les figures auront comme thème &quot;my_theme&quot;</span></a></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>my_theme <span class="ot">&lt;-</span> <span class="fu">theme_bw</span>(<span class="at">base_size =</span> <span class="dv">12</span>, <span class="at">base_line_size =</span> <span class="fl">0.25</span>, <span class="at">base_rect_size =</span> <span class="fl">0.25</span>) <span class="sc">+</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>            <span class="fu">theme</span>(<span class="at">axis.title.y =</span> <span class="fu">element_text</span>(<span class="at">angle =</span> <span class="dv">90</span>),</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>                  <span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">10</span>, <span class="at">colour =</span> <span class="st">&quot;black&quot;</span>),</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>                  <span class="at">axis.text.y =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">10</span>, <span class="at">colour =</span> <span class="st">&quot;black&quot;</span>),</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>                  <span class="at">legend.key =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>                  <span class="at">legend.title =</span> <span class="fu">element_text</span>(<span class="at">colour =</span> <span class="st">&quot;black&quot;</span>), </span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>                  <span class="at">legend.text =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">10</span>),</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>                  <span class="at">legend.background =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>                  <span class="at">panel.grid.major =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>                  <span class="at">panel.grid.minor =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>                  <span class="at">axis.line =</span> <span class="fu">element_line</span>(<span class="at">color =</span> <span class="st">&quot;black&quot;</span>),</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>                  <span class="at">panel.border =</span> <span class="fu">element_rect</span>(<span class="at">colour =</span> <span class="st">&quot;black&quot;</span>, <span class="at">fill =</span> <span class="cn">NA</span>))</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="fu">theme_set</span>(my_theme) <span class="co"># toutes les figures auront comme thème &quot;my_theme&quot;</span></span></code></pre></div>
 </div>
 
 
@@ -604,6 +607,9 @@ $(document).ready(function () {
 
 <script>
 $(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
 
     // move toc-ignore selectors from section div to header
     $('div.section.toc-ignore')

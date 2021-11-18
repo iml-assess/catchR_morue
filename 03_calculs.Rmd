@@ -142,8 +142,11 @@ for (i in 1:nrow(rels)){
 ```
 Comment sont les figures diagnostiques?
 ```{r}
-for (i in 1:length(diags)){
-  print(diags[[i]])
+do_it <- T # si je le roule ou pas, car long processus
+if (do_it == T){
+  for (i in 1:length(diags)){
+    print(diags[[i]])
+  }
 }
 ```
 Après vérification des figures diagnostiques, j'en conclus que chaque régression satisfait aux prémisses d'un modèle de régression linéaire simple.
@@ -199,11 +202,11 @@ lf_caa <- lf %>%
 dim(lf_caa) # 57270 obs et 8 var
 
 # Regroupements d'engins
-load(dat_engin_obs); dim(engins_obs) # 14 obs et 4 var
+load(dat_engin_obs); dim(engins_obs) # 18 obs et 5 var
 engins_obs
 
 dim(lf_caa) # 57270 obs et 8 var
-lf_caa <- left_join(lf_caa, engins_obs %>% select(engin, engin_groupe), by = "engin") %>% 
+lf_caa <- left_join(lf_caa, engins_obs %>% select(source, engin, engin_groupe), by = c("source", "engin")) %>% 
           mutate(engin_groupe = as.character(engin_groupe)) # je ne veux pas des facteurs
 dim(lf_caa) # 57270 obs et 9 var
 table(lf_caa$engin_groupe, useNA = "always") # parfait.
@@ -229,8 +232,9 @@ lf_caa[, c("intercept", "slope")] <- NULL # rendu inutile
 # Classe de longueur: les longueurs sont déjà prises au cm près. je laisse ainsi
 
 # Renomme les colonnes (pour que les noms concordent avec ce que EVB utilise)
-names(lf_caa) <- recode(names(lf_caa), "opano" = "region", "engin_groupe" = "gear", "mois" = "period", "annee" = "year", 
-                        "longueur" = "length", "n_mes" = "n", "ech_id" = "sample.id")
+names(lf_caa) <- recode(names(lf_caa), "opano" = "region", "engin_groupe" = "gear", 
+                        "mois" = "period", "annee" = "year", "longueur" = "length", 
+                        "n_mes" = "n", "ech_id" = "sample.id")
 lf_caa <- lf_caa %>% select(year, period, region, gear, sample.id, length, weight.unit, n, source) 
 ```
 Je peux maintenant sauvegarder.
@@ -257,14 +261,22 @@ table(bio_caa$month, useNA = "always") # parfait
 
 # Région d'où proviennent les échantillons
 unique(bio_caa$region) # les valeurs à 2 caractères (4R et 4S) sont des zones unitaires vagues (quelque part dans 4R ou 4S)
-bio_caa %>% filter(is.na(region)) %>% pull(source) %>% unique # normal
+bio_caa %>% filter(is.na(region)) %>% pull(source) %>% unique # les valeurs de région NA sont issues des données du
+# relevé nGSL
 
 # Regroupements d'engins
 dim(bio_caa) # 47294 obs et 8 var
-bio_caa <- left_join(bio_caa, engins_obs %>% select(engin, engin_groupe), by = c("gear" = "engin")) %>% 
+bio_caa <- left_join(bio_caa, engins_obs %>% select(source, engin, engin_groupe), 
+                     by = c("gear" = "engin", "source" = "source")) %>% 
            mutate(engin_groupe = as.character(engin_groupe)) # je ne veux pas des facteurs
 dim(bio_caa) # 47294 obs et 9 var
-table(bio_caa$engin_groupe, useNA = "always") # parfait.
+table(bio_caa$engin_groupe, useNA = "always") # problème.
+bio_caa %>% filter(is.na(engin_groupe)) %>% pull(source) %>% unique # problème de merge
+# engins_obs contient les engins utilés dans les données d'observateurs en mer
+cor <- which(with(bio_caa, source == "nGSL")); length(cor) # 19913 lignes
+unique(bio_caa$engin_groupe[cor]) # NA pour l'instant
+bio_caa$engin_groupe[cor] <- "Shrimp trawls"
+rm(cor)
 bio_caa$gear <- NULL # inutile maintenant
 
 # Classe de longueur: les longueurs sont déjà prises au cm près. je laisse ainsi
@@ -323,81 +335,98 @@ Les données de débarquements sont en kg.
 ## Sélection des échantillons
 Je fais le calcul en 2 étapes:
   - Strates associées aux chaluts à crevettes
-  - Autres strates
+  - Autres strates (celles dont l'engin n'est pas le chalut à crevette)
 
 La raison est que je ne veux utiliser les données des observateurs à quai / relevé nGSL **QUE** pour ces strates et pas les autres.
 ```{r}
-# Strates avec chalut à crevettes
-intrant_catch <- catch_caa %>% filter(gear == "Shrimp trawl") %>% as.data.frame
-intrant_lf <- lf_caa %>% filter(gear == "Shrimp trawl", source == "observateur") %>% select(-source) %>% as.data.frame
-intrant_bio <- bio_caa %>% filter(gear == "Shrimp trawl", source == "nGSL") %>% select(-source) %>% as.data.frame
+if (!file.exists(dat_caa_raw)){
+  # Strates avec chalut à crevettes
+  intrant_catch <- catch_caa %>% filter(gear == "Shrimp trawls") %>% as.data.frame
+  intrant_lf <- lf_caa %>% 
+                filter(gear == "Shrimp trawls", source == "observateur") %>% select(-source) %>% 
+                as.data.frame
+  intrant_bio <- bio_caa %>% 
+                 filter(gear == "Shrimp trawls", source == "nGSL") %>% select(-source) %>% 
+                 as.data.frame
+  
+  caa_all_crev <- get.samples(catch = intrant_catch, 
+                              lf = intrant_lf, 
+                              al = intrant_bio, 
+                              min.lf.samples = 2, # min samples for length-frequency
+                              min.al.samples = 1, # min samples for age-length key. Différent ici puisque les âges de nGSL
+                              # sont vues comme un seul échantillon...
+                              min.al.fish = 100, # min number of fish required in alk
+                              period.unit = "month",
+                              prob.al = 0.95,
+                              subsample = TRUE) %>% 
+                  as_tibble
+  dim(caa_all_crev) # 3575 obs et 36 var
+  table(caa_all_crev$option.lengthfreq, useNA = "always") # ok
+  table(caa_all_crev$option.agelength, useNA = "always") # toujours 9, 10 ou 11
+  
+  # Autres strates
+  cor <- which(!with(catch_caa, gear == "Shrimp trawls" & !is.na(gear))); length(cor) # 4484 strates
+  intrant_catch <- catch_caa[cor, ] %>% as.data.frame
+  intrant_lf <- lf_caa %>% filter(source != "observateur") %>% select(-source) %>% as.data.frame
+  intrant_bio <- bio_caa %>% filter(source != "nGSL") %>% select(-source) %>% as.data.frame
+  
+  caa_all_aut <- get.samples(catch = intrant_catch, 
+                              lf = intrant_lf, 
+                              al = intrant_bio, 
+                              min.lf.samples = 2, # min samples for length-frequency
+                              min.al.samples = 2, # min samples for age-length key
+                              min.al.fish = 100, # min number of fish required in alk
+                              period.unit = "month",
+                              prob.al = 0.95,
+                              subsample = TRUE) %>% 
+                  as_tibble
+  
+  dim(caa_all_aut) # 226241 obs et 36 var
+  table(caa_all_aut$option.lengthfreq, useNA = "always") # ok
+  table(caa_all_aut$option.agelength, useNA = "always") # ok
+  
+  # Combinaison
+  val_max <- max(caa_all_aut$id); val_max
+  caa_all_crev <- caa_all_crev %>% mutate(id = id + val_max) # pour ne pas avoir de doublons d'ids
+  
+  caa_all <- bind_rows(caa_all_aut, caa_all_crev)
+  dim(caa_all) # 229816 obs et 38 var
+  n_distinct(caa_all$id) == nrow(catch_caa) # vrai
+  ids <- grep("age.", names(caa_all)); ids
+  caa_all <- caa_all %>% 
+             mutate_at(.vars = ids, .funs = function(x) ifelse(is.na(x), 0, x)) # à cause du bind_rows
+  save(caa_all, file = dat_caa_raw)
+  rm(caa_all_aut, caa_all_crev, ids)
+} else {
+  load(dat_caa_raw)
+}
 
-caa_all_crev <- get.samples(catch = intrant_catch, 
-                            lf = intrant_lf, 
-                            al = intrant_bio, 
-                            min.lf.samples = 2, # min samples for length-frequency
-                            min.al.samples = 1, # min samples for age-length key. Différent ici puisque les âges de nGSL
-                            # sont vues comme un seul échantillon...
-                            min.al.fish = 100, # min number of fish required in alk
-                            period.unit = "month",
-                            prob.al = 0.95,
-                            subsample = TRUE) %>% 
-                as_tibble
-dim(caa_all_crev) # 3575 obs et 36 var
-table(caa_all_crev$option.lengthfreq, useNA = "always") # ok
-table(caa_all_crev$option.agelength, useNA = "always") # toujours 9, 10 ou 11
-
-# Autres strates
-cor <- which(!with(catch_caa, gear == "Shrimp trawl" & !is.na(gear))); length(cor) # 4484
-intrant_catch <- catch_caa[cor, ] %>% as.data.frame
-intrant_lf <- lf_caa %>% filter(source != "observateur") %>% select(-source) %>% as.data.frame
-intrant_bio <- bio_caa %>% filter(source != "nGSL") %>% select(-source) %>% as.data.frame
-
-caa_all_aut <- get.samples(catch = intrant_catch, 
-                            lf = intrant_lf, 
-                            al = intrant_bio, 
-                            min.lf.samples = 2, # min samples for length-frequency
-                            min.al.samples = 2, # min samples for age-length key
-                            min.al.fish = 100, # min number of fish required in alk
-                            period.unit = "month",
-                            prob.al = 0.95,
-                            subsample = TRUE) %>% 
-                as_tibble
-
-dim(caa_all_aut) # 226241 obs et 36 var
-table(caa_all_aut$option.lengthfreq, useNA = "always") # ok
-table(caa_all_aut$option.agelength, useNA = "always") # ok
-
-# Combinaison
-val_max <- max(caa_all_aut$id); val_max
-caa_all_crev <- caa_all_crev %>% mutate(id = id + val_max) # pour ne pas avoir de doublons d'ids
-
-caa_all <- bind_rows(caa_all_aut, caa_all_crev)
-dim(caa_all) # 229816 obs et 38 var
-n_distinct(caa_all$id) == nrow(catch_caa) # vrai
-ids <- grep("age.", names(caa_all)); ids
-caa_all <- caa_all %>% 
-           mutate_at(.vars = ids, .funs = function(x) ifelse(is.na(x), 0, x)) # à cause du bind_rows
-save(caa_all, file = dat_caa_raw)
-rm(caa_all_aut, caa_all_crev, ids)
+dim(caa_all) # 229816 obs et 38 var 
 ```
 
 ## Calculs à l'âge
 ```{r}
-# 1) Calculs à l'âge avec le groupe+ (pour caan seulement)
-caa <- get.caa(x = caa_all, plus = 13) %>% as_tibble # on utilise un groupe d'âge 13+
-dim(caa) # 392 obs et 8 var
-cor <- which(with(caa, age == 13)); length(cor) # 28 lignes
-caa$age[cor] <- "13+"
+if (!file.exists(dat_caa_processed)){
+  # 1) Calculs à l'âge avec le groupe+ (pour caan seulement)
+  caa <- get.caa(x = caa_all, plus = 13) %>% as_tibble # on utilise un groupe d'âge 13+
+  dim(caa) # 392 obs et 8 var
+  cor <- which(with(caa, age == 13)); length(cor) # 28 lignes
+  caa$age[cor] <- "13+"
+  
+  # 2) Calculs à l'âge sans le groupe+ (pour les autres mesures)
+  caa2 <- get.caa(x = caa_all) %>% as_tibble
+  dim(caa2) # 532 obs et 8 var
+  
+  # 3) Combinaison
+  caa <- list("avec_plus" = caa, "sans_plus" = caa2) # dans une liste pour éviter la confusion
+  save(caa, file =  dat_caa_processed)
+  rm(caa2, bio, catch, engins_deb, engins_obs, lf, intrant_catch, intrant_lf, intrant_bio)
+} else {
+  load(dat_caa_processed)
+}
 
-# 2) Calculs à l'âge sans le groupe+ (pour les autres mesures)
-caa2 <- get.caa(x = caa_all) %>% as_tibble
-dim(caa2) # 532 obs et 8 var
-
-# 3) Combinaison
-caa <- list("avec_plus" = caa, "sans_plus" = caa2) # dans une liste pour éviter la confusion
-save(caa, file =  dat_caa_processed)
-rm(caa2, bio, catch, engins_deb, engins_obs, lf, intrant_catch, intrant_lf, intrant_bio)
+caa$avec_plus %>% dim # 392 obs et 8 var
+caa$sans_plus %>% dim # 532 obs et 8 var
 ```
 
 # Exemple pour le resdoc
@@ -540,18 +569,19 @@ avec <- left_join(avec, alk, by = "length")
 manque <- temp %>% filter(is.na(n_al)) %>% mutate(n_al = 0); manque
 manque <- left_join(manque, alg %>% filter(length == 27), by = "length")
 
-table1 <- bind_rows(manque %>% mutate(length = as.character(length)), 
-                    avec[1:7, ] %>% mutate(length = as.character(length)), 
-                    tibble(length = "..."), 
-                    avec[nrow(avec), ] %>% mutate(length = as.character(length))) %>% 
+table1 <- bind_rows(manque %>% mutate(length = as.character(length)), # 1ère longueur
+                    avec[1:7, ] %>% mutate(length = as.character(length)), # 7 autres longueur
+                    tibble(length = "..."),  # pour montrer que la table est bcp plus longue
+                    avec[nrow(avec), ] %>% mutate(length = as.character(length))) %>% # dernière longueur
           mutate_at(.vars = 1:3, .funs = function(x) ifelse(is.na(x), "", x)) %>% 
           mutate_at(.vars = 4:ncol(.), 
-                    .funs = function(x) ifelse(is.na(x)|x == 0, "", format(x, digits = 3, nsmall = 3, decimal.mark = dm)))
+                    .funs = function(x) ifelse(is.na(x)|x == 0, "", 
+                                               format(x, digits = 3, nsmall = 3, decimal.mark = dm)))
 
 ages_alk <- this.al %>% pull(age) %>% sort %>% unique; ages_alk # âges déjà dans la clé âge-longueur
 ages_alg <- setdiff(names(alg) %>% gsub("X", "", .) %>% .[2:length(.)], ages_alk); ages_alg # âges dans alg
 ages_manque <- setdiff(ages_alg, ages_alk); ages_manque
-ages_dispo <- bio_caa %>% filter(year %in% c(y-1, y, y + 1)) %>% pull(age) %>% sort %>% unique
+ages_dispo <- al %>% filter(year %in% c(y-1, y, y + 1)) %>% pull(age) %>% sort %>% unique
 ages_dispo <- setdiff(ages_dispo, ages_alk)
 ages_manque <- setdiff(ages_manque, ages_dispo)
 
@@ -586,10 +616,9 @@ caa_all %>%
          perc_cum = cumsum(perc))
 
 caa_all %>% 
-  filter(gear == "Shrimp trawl", option.lengthfreq > 6) %>% 
+  filter(gear == "Shrimp trawls", option.lengthfreq > 6) %>% 
   distinct(id, year, period, region, gear, option.lengthfreq)
-# La majorité des strates atteignaient le niveau requis d'échantillon <= niveau 4. Les niveaux 7 à 12 n'ont été utilisé que pour
-# 4 strates, toutes de 1995 et avec le chalut à crevettes
+# La majorité des strates atteignaient le niveau requis d'échantillon <= niveau 4. Les niveaux 7 à 12 n'ont été utilisé que pour 4 strates, toutes de 1995 et avec le chalut à crevettes
 
 # ALK
 caa_all %>% 
@@ -635,7 +664,7 @@ caa_all %>% group_by(id) %>% summarise(nb = unique(n.altot)) %>% pull(nb) %>% su
 # Les strates avaient en moyenne 431.8 morues pour faire leur clé âge-longueur (med = 260, min = 3, max = 2887)
 
 caa_all %>% 
-  filter(gear == "Shrimp trawl") %>% 
+  filter(gear == "Shrimp trawls") %>% 
   group_by(option.agelength) %>% 
   summarise(n = n_distinct(id)) %>% 
   ungroup
@@ -922,7 +951,8 @@ graphf <- ggplot(data = dat6 %>% filter(nb <= max_x), aes(x = nb)) +
           labs(x = lab10, y = lab11) +
           scale_x_continuous(breaks = brks_x, labels = labs_x, limits = c(0, max_x))
 
-save(grapha, graphb, graphc, graphd, graphe, graphf, file = paste0(result, "03_graphs_catchR_presentation_", langue, ".Rda"))
+save(grapha, graphb, graphc, graphd, graphe, graphf, 
+     file = paste0(result, "03_graphs_catchR_presentation_", langue, ".Rda"))
 
 combi <- plot_grid(grapha + labs(y = NULL), 
                    graphb + labs(y = NULL), 
@@ -1007,7 +1037,7 @@ graph3
 rm(dat)
 ```
 
-## `graph5`: concordance avec déb.
+## `graph4`: concordance avec déb.
 Je vérifie que la somme des captures à l'âge annuelles totalisent bien les débarquements totaux calculés d'après `catch_caa`.
 ```{r}
 tot <- catch_caa %>% group_by(year) %>% summarise(catch = sum(catch)) %>% ungroup

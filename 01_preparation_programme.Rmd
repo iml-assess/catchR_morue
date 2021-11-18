@@ -16,6 +16,8 @@ output:
     code_folding: show
     number_sections: TRUE
   linkcolor: blue
+editor_options: 
+  chunk_output_type: console
 ---
 # Objectif
 

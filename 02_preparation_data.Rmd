@@ -16,6 +16,8 @@ output:
     code_folding: show
     number_sections: TRUE
   linkcolor: blue
+editor_options: 
+  chunk_output_type: console
 ---
 # Objectif
 
@@ -42,6 +44,7 @@ Des packages supplémentaires sont requis.
 library(cowplot)
 library(grid)
 library(gridExtra)
+library(lubridate)
 ```
 
 # Débarquements
@@ -220,7 +223,7 @@ dim(lf) # 109138 obs et 34 var
 ### Caractéristiques biologiques
 Ces données incluent les âges.
 ```{r}
-bio <- read.bio(file = intrant_bio, year = NULL, species = my_sp, language = "fr") %>% 
+bio <- read.bio(file = intrant_bio, year = NULL, sp = my_sp, language = "fr") %>% 
        filter(grepl("3PN|4R|4S", opano)) %>% 
        mutate_at(.vars = c("engin", "engin_fr", "engin_en"), .funs = as.character) %>% 
        as_tibble
@@ -239,7 +242,7 @@ dim(bio) # 85185 obs et 24 var
 ## Échantillons manquants
 Pour certaines années (1994--1997), on voit que j'ai plus d'échantillons d'âge que d'échantillons de FL, ce qui est bizarre puisque normalement, l'échantillon d'âge est un sous-échantillon de celui de FL.
 
-Une théorie est que des échantillons auraient été envoyés complets à l'IML ou ailleurs. Là-bas, les spécimens auraient tous servis autant pour les lectures d'âge que pour les FL. Il aurait donc dû copier ces données dans les données LF et Âge, et pas seulement dans les données d'âge.
+Une théorie est que des échantillons auraient été envoyés complets à l'IML ou ailleurs. Là-bas, les spécimens auraient tous servis autant pour les lectures d'âge que pour les FL. Quelqu'un aurait donc dû copier ces données dans les données LF et Âge, et pas seulement dans les données d'âge.
 
 ```{r}
 a <- lf %>% filter(annee %in% my_year) %>% group_by(annee) %>% summarise(n_lf = n_distinct(ech_id)) %>% ungroup
@@ -311,19 +314,22 @@ Je m'assure que les âges font du sens.
 ```{r}
 bio %>% group_by(age) %>% count %>% as.data.frame() # pas de valeurs absurdes à 1ère vue. 1 seule valeur 1 an
 
-# Relation âge-longueur
-bio <- bio %>% group_by(age) %>% mutate(outlier = outlier(longueur, coef = 3)) %>% ungroup
-# Les valeurs étant au-dessus du 75e percentile ou en-dessous du 25e percentile par un facteur de 3 fois l'étendue interquartile 
-# sont jugées êtres des outliers.
+# bio comporte pour l'instant plus d'années que la période 1993:2020
+# Je ne veux valider les données 1993:2020 qu'en regardant les données de 1993:2020
+bio <- bio %>% 
+       mutate(periode = ifelse(annee %in% my_year, T, F)) %>% 
+       group_by(periode, age) %>% 
+       mutate(outlier = outlier(longueur, coef = 3)) %>% 
+       ungroup
+# Les valeurs étant au-dessus du 75e percentile ou en-dessous du 25e percentile par un facteur de 3 fois l'étendue interquartile sont jugées êtres des outliers.
+bio %>% filter(outlier == T) %>% select(annee, longueur, age, outlier) # 18 outliers initialement
 
-bio %>% filter(outlier == T) %>% select(annee, longueur, age, outlier) # 24 outliers initialement
-
-ggplot(data = bio %>% filter(annee %in% my_year), aes(x = longueur, fill = outlier)) +
+ggplot(data = bio %>% filter(periode == T), aes(x = longueur, fill = outlier)) +
     geom_histogram() +
     facet_wrap(~ age, scale = "free")
 # bizarre pour l'âge 1
-
-bio %>% filter(age == 1) %>% select(annee, longueur, age) # Lui aussi est un outlier. Impossible d'avoir 1 an/60 cm de long
+bio %>% filter(periode == T, age == 1) %>% select(annee, mois, jour, longueur, age)
+# Lui aussi est un outlier. Impossible d'avoir 1 an/60 cm de long
 bio[bio$age == 1, "outlier"] <- T
 # Pour les vieilles morues, beaucoup de variabilité. Je pense que c'est possible
 
@@ -339,13 +345,11 @@ if (langue == "fr"){
 
 # Pour la figure, je n'utilise que les données de 1993--2020.
 
-dim(bio) # 85185 obs et 25 var
-temp <- bio %>% filter(annee %in% my_year)
-dim(temp) # 27386 obs et 25 var
+dim(bio) # 85185 obs et 26 var
+temp <- bio %>% filter(periode == T)
+dim(temp) # 27386 obs et 26 var
 
-temp$outlier <- as.character(temp$outlier)
-temp[temp$outlier == "TRUE", "outlier"] <- lab3
-
+temp$outlier <- as.character(temp$outlier) %>% recode(., "TRUE" = lab3)
 range(temp$longueur)
 brks_y <- seq(from = 10, to = 150, by = 10)
 labs_y <- brks_y
@@ -369,9 +373,9 @@ graph1 <- ggplot(data = temp, aes(x = age, y = longueur, group = age)) +
           geom_text(data = nb, aes(x = age, y = -Inf, label = lab, vjust = -0.9))
 graph1
 
-bio %>% filter(annee %in% my_year, outlier == T) %>% nrow # 5 outliers pour la période d'intérêt
-bio %>% filter(outlier == T) %>% nrow # 25 outliers au total
-
+bio %>% filter(periode == T, outlier == T) %>% nrow # 5 outliers pour la période d'intérêt
+bio %>% filter(outlier == T) %>% nrow # 19 outliers au total
+bio$periode <- NULL # inutile maintenant
 rm(temp)
 ```
 
@@ -392,14 +396,24 @@ bio %>% filter(annee %in% my_year, outlier == F) %>% pull(engin_fr) %>% unique
 ```
 Je n'ai aucun débarquement de morues par des chaluttiers à crevette dans les données d'échantillonneurs à quai. Je vais devoir avoir recours aux données des observateurs en mer.
 ```{r}
-load(dat_obs_1990_1998); dim(JOP1) # 22550 obs et 44 var. Données fournies par Hugues Benoît via courriel le 9 sept. 2021
+load(dat_obs_1990_1998); dim(JOP1) # 22550 obs et 44 var. 
+# Données fournies par Hugues Benoît via courriel le 9 sept. 2021
 # représente les FL des morues capturées par des chaluts à crevette. La période 1990-1998 n'est actuellement pas disponible via la base de données et c'est pourquoi Hugues me fournit une copie qu'il avait sur son ordi personnel.
 
 unique(JOP1$spec) # juste de la morue
 unique(JOP1$mspec) # visait la crevette nordique
 
+JOP1 %>% 
+  mutate(annee = year(ymd(act_date))) %>% 
+  group_by(annee, gear) %>% 
+  count %>% 
+  ungroup %>% 
+  pivot_wider(names_from = gear, values_from = n, values_fill = 0)
+# À partir de 1993, la grille de Nordmore fait son entrée
+
 names(JOP1) <- recode(names(JOP1), "act_no" = "no_voy", "sub_acti" = "id", "uarea" = "opano",
-                      "fish_len" = "longueur", "no_fish" = "n_mes", "wt_samp" = "pds_ech", "act_date" = "date")
+                      "fish_len" = "longueur", "no_fish" = "n_mes", "wt_samp" = "pds_ech", "act_date" = "date",
+                      "gear" = "engin")
 
 JOP1 %>% distinct(no_voy, id, cfvn) %>% nrow # 854 activités de pêche unique
 JOP1 %>% distinct(capt_no) %>% nrow # 854 activités de pêche unique. capt_no identifie chaque activité de pêche
@@ -409,8 +423,7 @@ JOP1 %>%
   summarise_at(.vars = c("pds_ech", "wt_kept", "wt_dscrd"), .funs = n_distinct) %>% 
   ungroup %>% 
   summary # problème avec les pds_ech...
-# Pour une même activité, il semble que parfois, des échantillons aient été pris peut-être à différents moments durant la remontée 
-# de la capture à bord (ex: début, fin)
+# Pour une même activité, il semble que parfois, des échantillons aient été pris peut-être à différents moments durant la remontée de la capture à bord (ex: début, fin)
 # Je vais combiner les lignes
 
 JOP1 %>% 
@@ -424,8 +437,6 @@ JOP1 %>%
 # 69 activités de la sorte
 
 # Je vais régler cette problématique. J'en profite pour ne conserver que les variables qui m'intéressent.
-library(lubridate)
-
 a <- JOP1 %>% 
      group_by(capt_no) %>% 
      summarise(pds_ech = sum(unique(pds_ech), na.rm = T),
@@ -434,9 +445,10 @@ a <- JOP1 %>%
                wt_dscrd = unique(wt_dscrd),
                pds_capt = wt_kept + wt_dscrd,
                date = ymd(unique(date)),
-               annee = year(date)) %>% 
+               annee = year(date),
+               engin = unique(engin)) %>% 
      ungroup
-dim(a) # 854 obs et 8 var
+dim(a) # 854 obs et 9 var
 
 b <- JOP1 %>% 
      group_by(capt_no, longueur) %>% 
@@ -444,7 +456,7 @@ b <- JOP1 %>%
      ungroup
 dim(b) # 18744 obs et 3 var = moins de lignes que JOP1, car multiples échantillons par capt_no combinés.
 
-ajout_lf <- full_join(a, b, by = "capt_no"); dim(ajout_lf) # 18744 obs et 10 var
+ajout_lf <- full_join(a, b, by = "capt_no"); dim(ajout_lf) # 18744 obs et 11 var
 ajout_lf
 rm(a,b)
 
@@ -455,11 +467,11 @@ length(ids)
 
 table(ajout_lf$annee, useNA = "always")
 
-dim(ajout_lf) # 18744 obs et 10 var
+dim(ajout_lf) # 18744 obs et 11 var
 ajout_lf <- ajout_lf %>% 
             filter(!(capt_no %in% ids)) %>% 
             filter(annee %in% my_year) # je ne garde que les donneées dans les années d'intérêt
-dim(ajout_lf) # 1701 obs et 10 var. On perd bcp de lignes (le gros des données était de 1990:1992)
+dim(ajout_lf) # 1701 obs et 11 var. On perd bcp de lignes (le gros des données était de 1990:1992)
 
 ajout_lf %>% 
   group_by(capt_no) %>% 
@@ -471,19 +483,27 @@ ajout_lf %>%
 # La majeure partie du temps, toute la capture est échantillonnée
 
 range(ajout_lf$date) # du 18 avril 1993 au 3 sept 1998
-
 unique(ajout_lf$longueur) # au cm près = parfait
+unique(ajout_lf$engin)
 ```
 Maintenant avec les données post-1998.
 ```{r}
 load(dat_obs_1999); str(obs) # liste avec 2 jeux de données
+
+obs$catch %>% 
+  filter(esp_vis == 2211, esp_capt == 10) %>%  # visant la crevette nordique et ayant débarqué de la morue franche
+  group_by(annee, engin) %>% 
+  count %>% 
+  ungroup %>% 
+  pivot_wider(names_from = engin, values_from = n, values_fill = 0)
+# OTB n'est plus du tout utilisé...
 
 # Données de captures
 a <- obs$catch %>% 
      mutate(opano = div_nafo,
             pds_capt = pdv_cons + pdv_rej) %>% 
      filter(esp_vis == 2211, esp_capt == 10) %>%  # visant la crevette nordique et ayant débarqué de la morue franche
-     select(no_voy, no_affec, no_sorti, trait, opano, date, annee, pds_capt)
+     select(no_voy, no_affec, no_sorti, trait, opano, date, annee, pds_capt, engin)
 dim(a) # 5522 obs et 8 var
 a %>% distinct(no_voy, no_affec, no_sorti, trait) %>% nrow # ok. 1 ligne par trait de pêche
 # no_voy, no_affec, no_sorti, trait sont les variables à utiliser pour la clé pour identifier une activité de pêche.
@@ -501,9 +521,9 @@ dim(b) # 142199 obs et 6 var
 d <- obs$fl %>% 
      filter(espece == 10) %>% 
      group_by(no_voy, no_affec, no_sorti, trait) %>% 
-     summarise(pds_ech = sum(unique(pds_ech))) %>% # peut y avoir plus d'un échantillon par activité de pêche (ex: début/fin)
+     summarise(pds_ech = sum(unique(pds_ech))) %>% # peut y avoir plus d'un éch par activité de pêche (ex: début/fin)
      ungroup
-dim(d) # 8738 obs et 6 var
+dim(d) # 8738 obs et 5 var
 obs$fl %>% filter(espece == 10) %>% distinct(no_voy, no_affec, no_sorti, trait) %>% nrow # 8738
 
 b <- full_join(b, d, by = c("no_voy", "no_affec", "no_sorti", "trait"))
@@ -513,9 +533,10 @@ dim(b) # 142199 obs et 7 var
 dim(b) # 142199 obs et 7 var
 ajout_lf2 <- left_join(b, a, by = c("no_voy", "no_affec", "no_sorti", "trait")) %>% 
              filter(!is.na(date)) # les lignes où date est NA sont des lignes où l'appariement n'a pas fonctionné
-dim(ajout_lf2) # 8110 obs et 11 var
+dim(ajout_lf2) # 8110 obs et 12 var
 rm(a,b,d)
 range(ajout_lf2$date) # du 2 avril 1999 au 19 sept 2020
+table(ajout_lf2$engin, useNA = "always")
 
 ajout_lf2 %>% 
   group_by(no_voy, no_affec, no_sorti, trait) %>% 
@@ -532,29 +553,57 @@ val_max <- max(lf$ech_id); val_max # 65965
 # Données 1990-1998
 cle <- "capt_no"
 echs <- ajout_lf %>% distinct_at(cle) %>% mutate(ech_id = 1:nrow(.)) %>% mutate(ech_id = ech_id + val_max)
-dim(ajout_lf) # 1701 obs et 10 var
-ajout_lf <- left_join(ajout_lf, echs, by = cle)
 dim(ajout_lf) # 1701 obs et 11 var
+ajout_lf <- left_join(ajout_lf, echs, by = cle)
+dim(ajout_lf) # 1701 obs et 12 var
 
 # Données 1999-maintenant
 val_max <- max(ajout_lf$ech_id); val_max # 66116
 cle <- c("no_voy", "no_affec", "no_sorti", "trait")
 echs <- ajout_lf2 %>% distinct_at(cle) %>% mutate(ech_id = 1:nrow(.)) %>% mutate(ech_id = ech_id + val_max)
-dim(ajout_lf2) # 8110 obs et 11 var
-ajout_lf2 <- left_join(ajout_lf2, echs, by = cle)
 dim(ajout_lf2) # 8110 obs et 12 var
+ajout_lf2 <- left_join(ajout_lf2, echs, by = cle)
+dim(ajout_lf2) # 8110 obs et 13 var
 rm(echs, cle, val_max)
 ```
 
 Combinaison
+
+La description des codes d'engin est retrouvée [ici](\\dcqcimlna01a\BD_Peches\Observateur\Documentation\Description_codes engin.xlsx).
 ```{r}
 ajout_lf <- bind_rows(ajout_lf, ajout_lf2) %>% 
-            mutate(engin = "ST",
-                   engin_fr = "Chalut à crevette",
-                   engin_en = "Shrimp trawl",
-                   source = "observateur", # pour laisser une trace de la provenance de ces données
+            mutate(source = "observateur", # pour laisser une trace de la provenance de ces données
                    mois = month(date)) %>%  
-            filter(grepl("3Pn|4R|4S", opano)) %>%  # juste les données de 3Pn4RS désirées
+            filter(grepl("3Pn|4R|4S", opano)) # juste les données de 3Pn4RS désirées
+dim(ajout_lf) # 7640 obs et 18 var
+
+ajout_lf$engin_fr <- NA # vide initialement
+ajout_lf$engin_en <- NA # vide initialement
+unique(ajout_lf$engin)
+
+cor <- which(with(ajout_lf, engin == "OTB2")); length(cor) # 1189 lignes
+ajout_lf$engin_fr[cor] <- "Chalut de fond à panneaux (arrière)"
+ajout_lf$engin_en[cor] <- "Stern otter trawl"
+
+cor <- which(with(ajout_lf, engin == "GRL1")); length(cor) # 123 lignes
+ajout_lf$engin_fr[cor] <- "Chalut à crevettes (de côté) avec grille"
+ajout_lf$engin_en[cor] <- "Shrimp trawl (side) with grid"
+
+cor <- which(with(ajout_lf, engin == "GRL2")); length(cor) # 5365 lignes
+ajout_lf$engin_fr[cor] <- "Chalut à crevettes (arrière) avec grille"
+ajout_lf$engin_en[cor] <- "Shrimp trawl (stern) with grid"
+
+cor <- which(with(ajout_lf, engin == "TT")); length(cor) # 900 lignes
+ajout_lf$engin_fr[cor] <- "Chalut double"
+ajout_lf$engin_en[cor] <- "Twin trawl"
+
+cor <- which(with(ajout_lf, engin == "GRL")); length(cor) # 63 lignes
+ajout_lf$engin_fr[cor] <- "Chalut à crevettes (non spécifié) avec grille"
+ajout_lf$engin_en[cor] <- "Shrimp trawl (unspecified) with grid"
+rm(cor)
+table(ajout_lf$engin_fr, useNA = "always")
+
+ajout_lf <- ajout_lf %>% 
             select(ech_id, annee, opano, mois, date, engin, engin_fr, engin_en, source, longueur, n_mes, pds_ech)
 dim(ajout_lf) # 7640 obs et 12 var
 n_distinct(ajout_lf$ech_id) # 1546 échantillons
@@ -613,9 +662,9 @@ Pour chaque cellule de catch où l'engin est le chalut à crevettes, je vais me 
 ```{r}
 ajout_bio <- dat %>% 
              mutate(mois = 8, # le relevé nGSL est essentiellement au août
-                    engin = "ST",
-                    engin_fr = "Chalut à crevette",
-                    engin_en = "Shrimp trawl",
+                    engin = "OTB2", # est un chalut de fond. J'aurais pu mettre un autre code pour les chaluts à crev.
+                    engin_fr = "Chalut de fond à panneaux (arrière)",
+                    engin_en = "Stern otter trawl",
                     source = "nGSL")
 dim(ajout_bio) # 19915 obs et 8 var
 
@@ -633,8 +682,7 @@ ajout_bio %>% group_by(age) %>% count %>% as.data.frame() # pas de valeurs absur
 
 # Relation âge-longueur
 ajout_bio <- ajout_bio %>% group_by(age) %>% mutate(outlier = outlier(longueur, coef = 3)) %>% ungroup
-# Les valeurs étant au-dessus du 75e percentile ou en-dessous du 25e percentile par un facteur de 3 fois l'étendue interquartile 
-# sont jugées êtres des outliers.
+# Les valeurs étant au-dessus du 75e percentile ou en-dessous du 25e percentile par un facteur de 3 fois l'étendue interquartile sont jugées êtres des outliers.
 
 ajout_bio %>% filter(outlier == T) %>% select(annee, longueur, age, outlier) # 2 outliers initialement
 
@@ -657,7 +705,7 @@ rm(ajout_bio)
 # Classes d'engins
 Je me base en partie sur les regroupements présentés par @Frechet1986a.
 
-## des débarquements
+## Débarquements
 ```{r}
 setdiff(catch %>% filter(source == "NAFO 21B", annee %in% my_year) %>% pull(engin) %>% unique,
         catch %>% filter(source == "ZIFF", annee %in% my_year) %>% pull(engin) %>% unique)
@@ -672,10 +720,11 @@ dim(engins_deb) # 21 obs et 5 var
 
 
 if (langue == "fr"){
-  grp <- c("Chalut à crevette", "Autres chaluts", "Seines", "Filets maillants", "Palangres", "Engins manuels", "Trappes", 
-           "Autres / inconnus")
+  grp <- c("Chaluts à crevette", "Autres chaluts", "Seines", "Filets maillants", "Palangres", 
+           "Engins manuels", "Trappes", "Autres / inconnus")
 } else {
-  grp <- c("Shrimp trawl", "Other trawls", "Seines", "Gillnets", "Longlines", "Hand gear", "Traps", "Others / unknown")
+  grp <- c("Shrimp trawls", "Other trawls", "Seines", "Gillnets", "Longlines", "Hand gear", 
+           "Traps", "Others / unknown")
 }
 
 engins_deb[engins_deb$engin %in% c(19), "engin_groupe"] <- grp[1]
@@ -736,50 +785,58 @@ save(engins_deb, file = dat_engin_deb)
 rm(ajout_tot, ajout_min_max)
 ```
 
-## des observateurs à quai
+## Échantillonneurs à quai
 ```{r}
 setdiff(lf %>% filter(annee %in% my_year, outlier == F) %>% pull(engin) %>% unique, 
         bio %>% filter(annee %in% my_year, outlier == F) %>% pull(engin) %>% unique) 
-# tous les engins de lf sont dans bio, même ST qui provient des données du relevé nGSL
+# Quelques codes de chalut à crevettes ne sont pas dans les données bio
 setdiff(bio %>% filter(annee %in% my_year, outlier == F) %>% pull(engin) %>% unique, 
         lf %>% filter(annee %in% my_year, outlier == F) %>% pull(engin) %>% unique) 
 # tous les engins de bio sont dans lf
 
-engins_obs <- bio %>% 
+engins_obs <- lf %>% 
               filter(annee %in% my_year, outlier == F) %>% # pour n'avoir que ceux observés de 1993 à 2020
-              distinct(engin, engin_fr, engin_en) %>% 
-              mutate(engin_groupe = as.character(NA)) # vide initialement)
-dim(engins_obs) # 14 obs et 4 var
-engins_obs # correction requise pour SDN
-cor <- which(with(engins_obs, engin == "SDN")); length(cor) # 1 ligne
-engins_obs$engin_fr[cor] <- "Seine danoise, écossaise, ou pairée (2 navires)"
-engins_obs$engin_en[cor] <- "Danish, Scotish or paired (2 boats) seine"
+              distinct(source, engin, engin_fr, engin_en)
+dim(engins_obs) # 18 obs et 4 var
+engins_obs # Je vais utiliser les définitions retrouvées dans bio
 
-cor <- which(with(engins_obs, engin %in% c("ST")))
-length(cor) # 1 ligne
+for (i in 1:nrow(engins_obs)){
+  if (is.na(engins_obs$engin_fr[i])){
+    cor <- which(with(bio, engin == engins_obs$engin[i]))
+    ajout <- bio[cor, ] %>% group_by(engin, engin_fr, engin_en) %>% summarise %>% ungroup
+    engins_obs$engin_fr[i] <- ajout$engin_fr
+    engins_obs$engin_en[i] <- ajout$engin_en
+    rm(cor, ajout)
+  }
+}
+engins_obs # parfait
+engins_obs$engin_groupe <- NA # vide initialement
+
+cor <- which(with(engins_obs, source == "observateur"))
+length(cor) # 5 lignes
 engins_obs$engin_groupe[cor] <- grp[1]
 
-cor <- which(with(engins_obs, engin %in% c("OTB2", "OTM")))
+cor <- which(with(engins_obs, source == "quai" & engin %in% c("OTB2", "OTM")))
 length(cor) # 2 lignes
 engins_obs$engin_groupe[cor] <- grp[2]
 
-cor <- which(with(engins_obs, engin %in% c("SDN", "PS")))
+cor <- which(with(engins_obs, source == "quai" & engin %in% c("SDN", "PS")))
 length(cor) # 2 lignes
 engins_obs$engin_groupe[cor] <- grp[3]
 
-cor <- which(with(engins_obs, engin %in% c("GN", "GNS")))
+cor <- which(with(engins_obs, source == "quai" & engin %in% c("GN", "GNS")))
 length(cor) # 2 lignes
 engins_obs$engin_groupe[cor] <- grp[4]
 
-cor <- which(with(engins_obs, engin %in% c("LL", "LLS")))
+cor <- which(with(engins_obs, source == "quai" & engin %in% c("LL", "LLS")))
 length(cor) # 2 lignes
 engins_obs$engin_groupe[cor] <- grp[5]
 
-cor <- which(with(engins_obs, engin %in% c("LHP", "LLG", "LX")))
+cor <- which(with(engins_obs, source == "quai" & engin %in% c("LHP", "LLG", "LX")))
 length(cor) # 3 lignes
 engins_obs$engin_groupe[cor] <- grp[6]
 
-cor <- which(with(engins_obs, engin %in% c("FPN", "FIX")))
+cor <- which(with(engins_obs, source == "quai" & engin %in% c("FPN", "FIX")))
 length(cor) # 2 lignes
 engins_obs$engin_groupe[cor] <- grp[7]
 
@@ -1404,30 +1461,27 @@ if (langue == "fr"){
   # à définir
 }
 
-g <- left_join(lf, engins_obs %>% select(engin, engin_groupe), by = "engin") %>% 
-     filter(annee %in% my_year, outlier == F) %>% 
-     pull(engin_groupe) %>% as.character(.) %>% unique    
-
 n_id <- lf %>% 
         filter(annee %in% my_year, outlier == F) %>% 
-        group_by(engin) %>% 
+        group_by(source, engin) %>% 
         summarise(nb_id = n_distinct(ech_id)) %>% 
         ungroup
        
 dat <- lf %>% 
        filter(annee %in% my_year, outlier == F) %>% 
-       group_by(engin, longueur) %>% 
+       group_by(source, engin, longueur) %>% 
        summarise(n = sum(n_mes, na.rm = T)) %>% 
        ungroup %>% 
-       left_join(., engins_obs %>% select(engin, engin_groupe), by = "engin") %>% 
-       left_join(., n_id, by = "engin") %>% 
-       group_by(engin) %>% 
+       left_join(., engins_obs %>% select(source, engin, engin_groupe), by = c("source", "engin")) %>% 
+       left_join(., n_id, by = c("source", "engin")) %>% 
+       group_by(source, engin) %>% 
        mutate(engin = paste0(engin, " (", unique(nb_id), text1, format(sum(n), big.mark = bm), text2)) %>% 
        ungroup
 
-dim(dat) # 875 obs et 5 var
+dim(dat) # 1012 obs et 6 var
 
-g <- intersect(levels(engins_deb$engin_groupe), g); g # je veux une figure pour chacun de ces regroupements
+g <- intersect(levels(engins_deb$engin_groupe), dat$engin_groupe)
+g # je veux une figure pour chacun de ces regroupements
 
 range(dat$longueur)
 brks_x <- seq(from = 0, to = 150, by = 5)
